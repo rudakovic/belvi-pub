@@ -8,7 +8,8 @@ function belvi_register_api_routes() {
 	register_rest_route('belvi/v1', '/get-beer/(?P<id>\d+)', array(
 		'methods'  => 'GET',
 		'callback' => 'belvi_get_custom_posts',
-		'permission_callback' => 'belvi_check_permission'
+		'permission_callback' => 'belvi_check_permission',
+		'cookie_auth' => true,
 	));
 }
 
