@@ -31,8 +31,8 @@ function openBeer(e, id) {
             beerAVB.innerText = data['abv'];
             beerIBU.innerText = data['ibu'];
             beerBreweryIcon.src = data['brewery_icon'];
-            if(!beerView.classlist.contains('open')) {
-                beerView.classlist.add('open');
+            if(!beerView.classList.contains('open')) {
+                beerView.classList.add('open');
             }
         })
         .catch(error => {
