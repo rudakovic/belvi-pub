@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const apiUrl = belviPlugin.api_url;
     const nonce = belviPlugin.nonce;
 
-    function openBear(e, id) {
+    function openBeer(e, id) {
         e.preventDefault();
 
         const postUrl = `${apiUrl}${id}`;

@@ -22,7 +22,7 @@ function belvi_enqueue_assets() {
 	$nonce = wp_create_nonce('belvi_nonce_action');
 
 	// Pass nonce to JavaScript
-	wp_localize_script('belvi-plugin-js', 'belviPlugin', array(
+	wp_localize_script('belvi-script', 'belviPlugin', array(
 		'nonce' => $nonce,
 		'api_url' => esc_url(rest_url('belvi/v1/get-beer/')),
 	));
