@@ -16,6 +16,12 @@ add_action('rest_api_init', 'belvi_register_api_routes');
 
 function belvi_check_permission() {
 	// Check nonce
+	if (isset($_SERVER['HTTP_X_WP_NONCE'])) {
+		error_log('Nonce received: ' . $_SERVER['HTTP_X_WP_NONCE']);
+	} else {
+		error_log('No nonce received');
+	}
+
 	if (!isset($_SERVER['HTTP_X_WP_NONCE'])) {
 		return new WP_Error('invalid_nonce', 'Nonce is missing', ['status' => 403]);
 	}
