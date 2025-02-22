@@ -5,9 +5,9 @@ function openBeer(e, id) {
     e.preventDefault();
 
     const apiUrl = belviPlugin.api_url;
-    const nonce = belviPlugin.nonce;
+    const nonce = document.querySelector('#belvi_nonce').value;
 
-    console.log('Nonce:', belviPlugin.nonce);
+    console.log('Nonce:', nonce);
 
     const postUrl = `${apiUrl}${id}`;
 
