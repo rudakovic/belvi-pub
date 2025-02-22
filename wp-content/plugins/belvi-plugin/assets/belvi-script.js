@@ -14,7 +14,8 @@ function openBeer(e, id) {
         headers: {
             'Content-Type': 'application/json',
             'X-WP-Nonce': nonce
-        }
+        },
+        credentials: 'same-origin'
     })
         .then(response => response.json())
         .then(data => {
