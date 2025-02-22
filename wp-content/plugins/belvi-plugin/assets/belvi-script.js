@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
 function openBeer(e, id) {
     e.preventDefault();
 
-    const postUrl = `belvi/v1/get-beer/${id}`;
+    const postUrl = `/wp-json/belvi/v1/get-beer/${id}`;
 
     fetch(postUrl, {
         method: 'GET',
