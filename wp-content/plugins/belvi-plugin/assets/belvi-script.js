@@ -4,18 +4,12 @@ document.addEventListener('DOMContentLoaded', function () {
 function openBeer(e, id) {
     e.preventDefault();
 
-    const apiUrl = belviPlugin.api_url;
-    const nonce = document.querySelector('#belvi_nonce').value;
-
-    console.log('Nonce:', nonce);
-
-    const postUrl = `${apiUrl}${id}`;
+    const postUrl = `belvi/v1/get-beer/${id}`;
 
     fetch(postUrl, {
         method: 'GET',
         headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': nonce
+            'Content-Type': 'application/json'
         },
         credentials: 'same-origin'
     })
