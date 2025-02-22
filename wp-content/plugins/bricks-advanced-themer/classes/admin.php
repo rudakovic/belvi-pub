@@ -352,7 +352,7 @@ class AT__Admin{
         wp_register_script( 'highlight', \BRICKS_ADVANCED_THEMER_URL . 'assets/js/highlight.min.js', [], filemtime( \BRICKS_ADVANCED_THEMER_PATH . '/assets/js/highlight.min.js' ) );
         wp_register_script( 'bricks-strict-editor-view', \BRICKS_ADVANCED_THEMER_URL . 'assets/js/bricks-strict-editor-view.js', [], filemtime( \BRICKS_ADVANCED_THEMER_PATH . '/assets/js/bricks-strict-editor-view.js' ) );
         wp_register_script( 'recursive-diff', \BRICKS_ADVANCED_THEMER_URL . 'assets/js/recursive-diff.min.js', [], filemtime( \BRICKS_ADVANCED_THEMER_PATH . '/assets/js/recursive-diff.min.js' ) );
-        wp_register_script( 'brxc-page-transition', \BRICKS_ADVANCED_THEMER_URL . 'assets/js/page-transition.js', [], filemtime( \BRICKS_ADVANCED_THEMER_PATH . '/assets/js/page-transition.js' ) );
+        //wp_register_script( 'brxc-page-transition', \BRICKS_ADVANCED_THEMER_URL . 'assets/js/page-transition.js', [], filemtime( \BRICKS_ADVANCED_THEMER_PATH . '/assets/js/page-transition.js' ) );
         
     }
     public static function enqueue_theme_styles(){

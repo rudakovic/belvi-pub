@@ -26,7 +26,7 @@ define( 'DB_NAME', 'belvi_db' );
 define( 'DB_USER', 'belvi_user' );
 
 /** Database password */
-define( 'DB_PASSWORD', 'codcod88' );
+define( 'DB_PASSWORD', 'Codcod.44' );
 
 /** Database hostname */
 define( 'DB_HOST', 'localhost' );
@@ -48,14 +48,14 @@ define( 'DB_COLLATE', '' );
  *
  * @since 2.6.0
  */
-define( 'AUTH_KEY',         'put your unique phrase here' );
-define( 'SECURE_AUTH_KEY',  'put your unique phrase here' );
-define( 'LOGGED_IN_KEY',    'put your unique phrase here' );
-define( 'NONCE_KEY',        'put your unique phrase here' );
-define( 'AUTH_SALT',        'put your unique phrase here' );
-define( 'SECURE_AUTH_SALT', 'put your unique phrase here' );
-define( 'LOGGED_IN_SALT',   'put your unique phrase here' );
-define( 'NONCE_SALT',       'put your unique phrase here' );
+define('AUTH_KEY',         'ZtFf^ dXHumdn&#w{}Q|,3!`MT[jzI($?p[&xr)|DtMo|atWv``cpFE?(u:F^44D');
+define('SECURE_AUTH_KEY',  '++WD7vy~cIr1Xb}n;vklio~tgkPUf/[r{f!9W$?HUza6x O]BVhC87a6(hoi+AAw');
+define('LOGGED_IN_KEY',    ';q%T1)e?z^t??:OIJB0r+!TKFSxr2m EWdt;HcyyoF*/[ZvAn[4vJ|iuaV3_of*u');
+define('NONCE_KEY',        'aB([Fo#upOpL702V=|+&1@p)`HKbi2o(U77dTHpT+0Y;+TRxLqhjuK8t7r@94c_I');
+define('AUTH_SALT',        'eA0kgNe53nS!T&GHo]Dv8f(2{hw/vuT+ti+Cz4|)7bd,aRXV@(?MxLiv*3&=2d{L');
+define('SECURE_AUTH_SALT', 'GO]*|8:(Q4DZpN2:Ku%W$1A%&`%&|6Ra{1{/ E<x-#,ucpr0h6Pwx|#/]21Yg+lw');
+define('LOGGED_IN_SALT',   'IpDz%(-.&O1@+xOVV-V~Xl`sTExLgMqbCRR|?`:iM r}6w0qEhrjK+K4gmm^*7z(');
+define('NONCE_SALT',       'PRzu|a#1;w]?W9rWdm8*hK}/y_a5z+.a:.&HA9_.{yZ}|35b-qYb{(7M10GJA-/y');
 
 /**#@-*/
 

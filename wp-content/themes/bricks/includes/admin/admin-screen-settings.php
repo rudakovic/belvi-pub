@@ -402,6 +402,25 @@ if ( $code_review ) {
 
 				<tr>
 					<th>
+						<label><?php esc_html_e( 'Duplicate content', 'bricks' ); ?></label>
+					</th>
+
+					<td>
+						<div class="setting-wrapper">
+							<?php $duplicate_content = $settings['duplicateContent'] ?? ''; ?>
+							<select name="duplicateContent" id="duplicate_content">
+								<option value=""><?php esc_html_e( 'Enable', 'bricks' ); ?></option>
+								<option value="disable_all" <?php selected( 'disable_all', $duplicate_content ); ?>><?php esc_html_e( 'Disable globally', 'bricks' ); ?></option>
+								<option value="disable_wp" <?php selected( 'disable_wp', $duplicate_content ); ?>><?php esc_html_e( 'Disable for WordPress data', 'bricks' ); ?></option>
+							</select>
+							<p class="description"><?php echo sprintf( esc_html__( 'Duplicate content is available to all users with the %s capability. Use this feature for any post or page to ensure that all relevant WordPress and/or Bricks data is duplicated accurately.', 'bricks' ), '"edit_post"' ); ?></p>
+							<p class="description"><?php echo esc_html__( 'Filter for more advanced duplicate content rules', 'bricks' ) . ': ' . Helpers::article_link( 'filter-bricks-use_duplicate_content/', 'bricks/use_duplicate_content' ); ?></p><br>
+						</div>
+					</td>
+				</tr>
+
+				<tr>
+					<th>
 						<label><?php esc_html_e( 'Form submissions', 'bricks' ); ?></label>
 					</th>
 					<td>
@@ -476,8 +495,7 @@ if ( $code_review ) {
 						<div class="setting-wrapper">
 							<input type="checkbox" name="enableQueryFilters" id="enableQueryFilters" <?php checked( isset( $settings['enableQueryFilters'] ) ); ?>>
 							<label for="enableQueryFilters"><?php esc_html_e( 'Enable query sort / filter / live search' ); ?></label>
-							<p class="description"><?php echo esc_html__( 'Only queries of type "Post" are supported at this initial stage of development.', 'bricks' ) . ' ' . esc_html__( 'Avoid using in combination with third-party filter plugins.', 'bricks' ); ?></p>
-							<p class="description"><?php echo esc_html__( 'Click "Regenerate filter index" to regenerate the query filter index for your entire website.', 'bricks' ) . ' ' . esc_html__( 'Click "Continue filter index" to immediately run any remaining/queued filter index jobs instead of waiting for the next WP cronjob.', 'bricks' ); ?></p>
+							<p class="description"><?php echo esc_html__( 'Queries of the types "Post", "Term", and "User" are supported.', 'bricks' ) . ' ' . esc_html__( 'Avoid using in combination with third-party filter plugins.', 'bricks' ); ?></p>
 						</div>
 
 						<?php
@@ -508,6 +526,9 @@ if ( $code_review ) {
 								?>
 								</p>
 							</div>
+
+							<label class="sub" for="queryFilterRegenerateIndex"><?php esc_html_e( 'Regenerate filter index', 'bricks' ); ?></label>
+							<p class="description"><?php echo esc_html__( 'Click "Regenerate filter index" to regenerate the query filter index for your entire website.', 'bricks' ) . ' ' . esc_html__( 'Click "Continue filter index" to immediately run any remaining/queued filter index jobs instead of waiting for the next WP cronjob.', 'bricks' ); ?></p><br>
 
 							<div class="setting-wrapper gap">
 								<button type="button" id="bricks-reindex-filters" class="ajax button button-secondary">
@@ -1398,6 +1419,22 @@ if ( $code_review ) {
 						<p class="description"><?php esc_html_e( 'Enable to sync global classes on every builder save between all open builder instances. Useful to avoid overwriting each others changes when multiple people work on the same dataset (e.g. adding, deleting, modifying global classes).', 'bricks' ); ?></p>
 					</td>
 				</tr>
+
+				<tr>
+					<th>
+						<label><?php esc_html_e( 'Global class import manager', 'bricks' ); ?></label>
+					</th>
+					<td>
+						<?php $global_classes_import = $settings['builderGlobalClassesImport'] ?? 'conflicts'; ?>
+						<select name="builderGlobalClassesImport" id="builderGlobalClassesImport" style="width: auto">
+							<option value="conflicts" <?php selected( $global_classes_import, 'conflicts' ); ?>><?php esc_html_e( 'Show for class conflicts', 'bricks' ); ?></option>
+							<option value="new" <?php selected( $global_classes_import, 'new' ); ?>><?php esc_html_e( 'Show for new classes', 'bricks' ); ?></option>
+							<option value="always" <?php selected( $global_classes_import, 'always' ); ?>><?php esc_html_e( 'Show for new & conflicting classes', 'bricks' ); ?></option>
+							<option value="never" <?php selected( $global_classes_import, 'never' ); ?>><?php esc_html_e( 'Never', 'bricks' ); ?></option>
+						</select>
+						<p class="description"><?php esc_html_e( 'Control when to show the global classes import manager when pasting elements, importing classes or templates.', 'bricks' ); ?></p>
+					</td>
+				</tr>
 			</tbody>
 		</table>
 
@@ -1577,6 +1614,21 @@ if ( $code_review ) {
 					</td>
 				</tr>
 				<?php } ?>
+
+				<tr>
+					<th>
+						<label for="bricksCascadeLayer">
+							<?php esc_html_e( 'Cascade layer', 'bricks' ); ?>
+						</label> <span class="badge"><?php esc_html_e( 'experimental', 'bricks' ); ?></span>
+					</th>
+					<td>
+						<input type="checkbox" name="bricksCascadeLayer" id="bricksCascadeLayer" <?php checked( isset( $settings['bricksCascadeLayer'] ) ); ?>>
+						<label for="bricksCascadeLayer"><?php esc_html_e( 'Wrap Bricks default styles in @layer', 'bricks' ); ?></label>
+						<p class="description">
+							<?php echo esc_html__( 'Enable to wrap all Bricks default styles in a cascade layer to prevent them from taking precedence over custom styles.', 'bricks' ) . ' ' . Helpers::article_link( 'cascade-layer', esc_html__( 'Learn more', 'bricks' ) ); ?>
+						</p>
+					</td>
+				</tr>
 			</tbody>
 		</table>
 
@@ -1916,7 +1968,7 @@ if ( $code_review ) {
 				<tr class="code-review sep">
 					<th>
 						<label for="codeOverview"><?php esc_html_e( 'Code review', 'bricks' ); ?></label>
-						<p class="description"><?php esc_html_e( 'Review all Code element, SVG element (code), Query editor, and "echo" tag instances.', 'bricks' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Review all Code element (PHP & HTML), SVG element (code), Query editor, and "echo" tag instances.', 'bricks' ); ?></p>
 					</th>
 
 					<td>

@@ -209,13 +209,51 @@ class Pagination extends Element {
 	}
 
 	public function render() {
-		$settings = $this->settings;
+		$settings         = $this->settings;
+		$query_id         = $settings['queryId'] ?? '';
+		$element_id       = $query_id;
+		$element_settings = [];
+		$query_element_id = $query_id;
 
-		// Query from a Query Loop
-		if ( ! empty( $settings['queryId'] ) && $settings['queryId'] !== 'main' ) {
-			$element_settings = Helpers::get_element_settings( $this->post_id, $settings['queryId'] );
+		// Query from a query Loop
+		if ( $query_id && $query_id !== 'main' ) {
+			$local_element = Helpers::get_element_data( $this->post_id, $element_id );
+
+			/**
+			 * No local element found: Try getting query element settings from component instance via 'instanceId'
+			 *
+			 * @since 1.12
+			 */
+			if ( ! $local_element ) {
+				if ( ! empty( $this->element['instanceId'] ) ) {
+					$local_element = Helpers::get_element_data( $this->post_id, $this->element['instanceId'] );
+				}
+
+				// Get component instance settings
+				$component_instance = ! empty( $local_element['element'] ) ? Helpers::get_component_instance( $local_element['element'] ) : false;
+				$component_elements = $component_instance['elements'] ?? [];
+
+				// Prepend local element id to query element id prevent getting other instance of query (see: $query_instance in Query.php l64)
+				if ( ! empty( $local_element['element']['id'] ) ) {
+					$query_element_id = $query_id . ':' . $local_element['element']['id'];
+				}
+
+				// Get query element settings from component element
+				foreach ( $component_elements as $component_element ) {
+					if ( $component_element['id'] === $query_id ) {
+						$element_settings = $component_element['settings'] ?? [];
+						break;
+					}
+				}
+			}
+
+			// Is local element
+			else {
+				$element_settings = Helpers::get_element_settings( $this->post_id, $element_id );
+			}
 
 			if ( empty( $element_settings ) ) {
+				// Retun: No element nor component instance settings found
 				return $this->render_element_placeholder(
 					[
 						'title' => esc_html__( 'The query element doesn\'t exist.', 'bricks' ),
@@ -225,7 +263,7 @@ class Pagination extends Element {
 
 			$query_obj = new Query(
 				[
-					'id'       => $settings['queryId'],
+					'id'       => $query_element_id,
 					'settings' => $element_settings,
 				]
 			);
@@ -286,7 +324,7 @@ class Pagination extends Element {
 			);
 		}
 
-		$this->set_ajax_attributes();
+		$this->set_ajax_attributes( $query_id );
 
 		echo "<div {$this->render_attributes( '_root' )}>" . $pagination . '</div>';
 	}
@@ -316,22 +354,22 @@ class Pagination extends Element {
 	/**
 	 * Set AJAX attributes
 	 */
-	private function set_ajax_attributes() {
+	private function set_ajax_attributes( $query_id ) {
 		$settings = $this->settings;
 
-		if ( ! isset( $settings['ajax'] ) || empty( $settings['queryId'] ) || $settings['queryId'] === 'main' ) {
+		if ( ! isset( $settings['ajax'] ) || empty( $query_id ) || $query_id === 'main' ) {
 			return;
 		}
 
 		// For AJAX pagination (@since 1.10)
-		$this->set_attribute( '_root', 'data-query-element-id', $settings['queryId'] );
+		$this->set_attribute( '_root', 'data-query-element-id', $query_id );
 		$this->set_attribute( '_root', 'class', 'brx-ajax-pagination' );
 
 		if ( Helpers::enabled_query_filters() ) {
-			// Filter type AJAX pagination
+			// Filter type AJAX pagination (No need to enqueue 'bricks-filters' as pagination element will only use the filter logic when used together with a filter element)
 			$filter_settings = [
 				'filterId'            => $this->id,
-				'targetQueryId'       => $settings['queryId'],
+				'targetQueryId'       => $query_id,
 				'filterAction'        => 'filter',
 				'filterType'          => 'pagination',
 				'filterMethod'        => 'ajax',

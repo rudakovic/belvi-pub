@@ -118,8 +118,8 @@ abstract class Base implements Provider_Interface {
 				continue;
 			}
 
-			// Trim number of words or avatar size (in px)
-			if ( is_numeric( $arg ) ) {
+			// Trim number of words or avatar size (in px) && don't accept scientific notation, which include "e" (@since 1.12)
+			if ( is_numeric( $arg ) && strpos( strtolower( $arg ), 'e' ) === false ) {
 				$filters['num_words'] = $arg;
 			}
 

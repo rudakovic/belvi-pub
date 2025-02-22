@@ -67,7 +67,11 @@ class Element_Nav_Menu extends Element {
 			'type'        => 'select',
 			'options'     => $nav_menus,
 			'placeholder' => esc_html__( 'Select nav menu', 'bricks' ),
-			'description' => sprintf( '<a href="' . admin_url( 'nav-menus.php' ) . '" target="_blank">' . esc_html__( 'Manage my menus in WordPress.', 'bricks' ) . '</a>' ),
+			'description' => sprintf(
+				'<a href="%s" target="_blank">%s</a>',
+				esc_url( admin_url( 'nav-menus.php' ) ),
+				esc_html__( 'Manage my menus in WordPress.', 'bricks' )
+			),
 		];
 
 		$this->controls['menuAlignment'] = [

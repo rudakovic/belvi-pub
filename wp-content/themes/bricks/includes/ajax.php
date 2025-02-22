@@ -441,6 +441,14 @@ class Ajax {
 		 * @since 1.4
 		 */
 		if ( ! empty( $loop_element ) ) {
+			// If it's an element inside a component, should use the component data (@since 1.12)
+			$cid       = $loop_element['cid'] ?? false;
+			$component = $element['componentInstance'] ?? false;
+
+			if ( $cid && isset( $component['id'] ) && $component['id'] === $cid ) {
+				$loop_element = $component;
+			}
+
 			$query = new Query( $loop_element );
 
 			if ( ! empty( $query->count ) ) {
@@ -464,8 +472,6 @@ class Ajax {
 			ob_start();
 			$element_instance->init();
 			$response = ob_get_clean();
-			// NOTE: stripslashes no longer in use (@since 1.8.5) as they caused unicode characters to be escaped (e.g. \u00a0) (#862jxcrde; #862jxw1w7)
-			// $response = stripslashes( $response );
 		}
 
 		// Element doesn't exist
@@ -707,20 +713,51 @@ class Ajax {
 	public function get_terms_options() {
 		self::verify_request( 'bricks-nonce-builder' );
 
-		$post_types = ! empty( $_GET['postTypes'] ) ? array_map( 'sanitize_text_field', $_GET['postTypes'] ) : null;
-		$taxonomy   = ! empty( $_GET['taxonomy'] ) ? array_map( 'sanitize_text_field', $_GET['taxonomy'] ) : null;
-		$terms      = [];
+		$post_types  = ! empty( $_GET['postTypes'] ) ? array_map( 'sanitize_text_field', $_GET['postTypes'] ) : null;
+		$taxonomy    = ! empty( $_GET['taxonomy'] ) ? array_map( 'sanitize_text_field', $_GET['taxonomy'] ) : null;
+		$search      = ! empty( $_GET['search'] ) ? stripslashes_deep( sanitize_text_field( $_GET['search'] ) ) : ''; // Improve performance (@since 1.12)
+		$include_all = ! empty( $_GET['includeAll'] ) ? true : null;
+		$terms       = [];
 
 		if ( ! empty( $post_types ) ) {
 			foreach ( (array) $post_types as $post_type ) {
-				$type_terms = Helpers::get_terms_options( $taxonomy, $post_type );
+				$type_terms = Helpers::get_terms_options( $taxonomy, $post_type, $include_all, $search );
 
 				if ( ! empty( $type_terms ) ) {
 					$terms = array_merge( $terms, $type_terms );
 				}
 			}
 		} elseif ( ! empty( $taxonomy ) ) {
-			$terms = Helpers::get_terms_options( $taxonomy );
+			$terms = Helpers::get_terms_options( $taxonomy, null, $include_all, $search );
+		}
+
+		// If AJAX request contains "include" parameter, make sure some term_ids are included in the response (@since 1.12)
+		if ( ! empty( $_GET['include'] ) ) {
+			$include_terms = (array) $_GET['include'];
+
+			foreach ( $include_terms as $term_string ) {
+				if ( ! array_key_exists( $term_string, $terms ) ) {
+					$term_parts = explode( '::', $term_string );
+					$taxonomy   = sanitize_key( $term_parts[0] );
+					$term_id    = sanitize_key( $term_parts[1] );
+
+					if ( $term_id !== 0 && taxonomy_exists( $taxonomy ) ) {
+						$term_name      = '';
+						$taxonomy_label = Helpers::generate_taxonomy_label( $taxonomy );
+
+						if ( $term_id === 'all' ) {
+							$term_name = esc_html__( 'All terms', 'bricks' );
+						} else {
+							$term = get_term( $term_id, $taxonomy );
+							if ( $term && ! is_wp_error( $term ) ) {
+								$term_name = $term->name;
+							}
+						}
+
+						$terms[ $term_string ] = "{$term_name} ({$taxonomy_label})";
+					}
+				}
+			}
 		}
 
 		// Apply filter to each term name (@since 1.11)
@@ -729,7 +766,7 @@ class Ajax {
 
 			if ( count( $term_parts ) === 2 ) {
 				$taxonomy = sanitize_key( $term_parts[0] );
-				$term_id  = absint( $term_parts[1] );
+				$term_id  = sanitize_key( $term_parts[1] );
 
 				if ( $term_id !== 0 && $term_id !== 'all' && taxonomy_exists( $taxonomy ) ) {
 					// NOTE: Undocumented (@since 1.11)
@@ -759,6 +796,18 @@ class Ajax {
 		$elements = self::decode( $_POST['elements'], false );
 		$elements = array_map( 'Bricks\Helpers::set_is_frontend_to_false', $elements );
 
+		/**
+		 * Use real-time, possibly unsaved components data from builder to generate in-builder styles correctly
+		 *
+		 * Needed as components data in builder is unsaved and not yet in database.
+		 *
+		 * @since 1.12
+		 */
+		$components = isset( $_POST['components'] ) ? self::decode( $_POST['components'], false ) : false;
+		if ( $components ) {
+			Database::$global_data['components'] = $components;
+		}
+
 		// Set Theme Styles (for correct preview of query loop nodes)
 		Theme_Styles::load_set_styles( $post_id );
 
@@ -767,7 +816,7 @@ class Ajax {
 
 		if ( is_array( $global_elements ) && count( $global_elements ) ) {
 			foreach ( $elements as $index => $element ) {
-				$global_element_id = ! empty( $element['global'] ) ? $element['global'] : false;
+				$global_element_id = $element['global'] ?? false;
 
 				if ( $global_element_id ) {
 					foreach ( $global_elements as $global_element ) {
@@ -782,7 +831,7 @@ class Ajax {
 			}
 		}
 
-		// Generate query loop styles for dynamic data (@since 1.8)
+		// Generate query loop styles for dynamic data
 		$loop_name = "loop_{$post_id}";
 
 		// Use loop element ID as loop_name if possible
@@ -812,7 +861,7 @@ class Ajax {
 
 		$data = [
 			'html'   => $html,
-			'styles' => $styles,
+			'styles' => isset( $_POST['staticArea'] ) ? $inline_css : $styles, // StaticArea.vue: inline CSS only, otherwise full styles with <style> tag (@since 1.12)
 		];
 
 		// Run query to get query results count in builder (@since 1.9.1)
@@ -862,8 +911,12 @@ class Ajax {
 		 */
 		$revision_id = 0;
 
-		// Check: Bricks elements data changed. If not, don't save post & don't create revision
-		$bricks_data_changed = isset( $_POST['header'] ) || isset( $_POST['content'] ) || isset( $_POST['footer'] );
+		/**
+		 * Bricks elements data changed (header, content, footer, components)
+		 *
+		 * If not, don't save post & don't create revision
+		 */
+		$bricks_data_changed = isset( $_POST['header'] ) || isset( $_POST['content'] ) || isset( $_POST['footer'] ) || isset( $_POST['components'] );
 
 		// Page settings changed: Re-generate external CSS file
 		if ( ! $bricks_data_changed ) {
@@ -871,6 +924,17 @@ class Ajax {
 		}
 
 		/**
+		 * Save components in database
+		 *
+		 * @since 1.12
+		 */
+		$components = isset( $_POST['components'] ) ? self::decode( $_POST['components'], false ) : false;
+
+		if ( is_array( $components ) ) {
+			update_option( BRICKS_DB_COMPONENTS, $components );
+		}
+
+		/*
 		 * Collect notifications & conflicts (users modified the same global class at the same time)
 		 *
 		 * Global data in database differs from builder data
@@ -1192,11 +1256,13 @@ class Ajax {
 				}
 
 				// Remove items from trash if they exist in global_classes
-				$final_trash = array_filter(
-					$unique_trash,
-					function( $trash_item ) use ( $global_classes ) {
-						return ! in_array( $trash_item['id'], array_column( $global_classes, 'id' ) );
-					}
+				$final_trash = array_values( // Ensure we have a sequential array (@since 1.12)
+					array_filter(
+						$unique_trash,
+						function( $trash_item ) use ( $global_classes ) {
+							return ! in_array( $trash_item['id'], array_column( $global_classes, 'id' ) );
+						}
+					)
 				);
 
 				// Save updated trash

@@ -147,9 +147,41 @@ class Assets {
 	 */
 	public static function enqueue_setting_specific_scripts( $settings = [] ) {
 		if ( empty( $settings ) ) {
-			$bricks_settings_string  = wp_json_encode( Database::get_template_data( 'header' ) );
-			$bricks_settings_string .= wp_json_encode( Database::get_template_data( 'content' ) );
-			$bricks_settings_string .= wp_json_encode( Database::get_template_data( 'footer' ) );
+			// Get all Bricks elements used on the page (header, content, footer)
+			$bricks_settings_string = '';
+			$all_elements           = [];
+			$header_elements        = Database::get_template_data( 'header' );
+			$content_elements       = Database::get_template_data( 'content' );
+			$footer_elements        = Database::get_template_data( 'footer' );
+
+			if ( is_array( $header_elements ) ) {
+				$all_elements = array_merge( $all_elements, $header_elements );
+			}
+
+			if ( is_array( $content_elements ) ) {
+				$all_elements = array_merge( $all_elements, $content_elements );
+			}
+
+			if ( is_array( $footer_elements ) ) {
+				$all_elements = array_merge( $all_elements, $footer_elements );
+			}
+
+			foreach ( $all_elements as $element ) {
+				$bricks_settings_string .= wp_json_encode( $element );
+
+				// Get component instance (@since 1.12)
+				if ( ! empty( $element['cid'] ) ) {
+					$component_instance = Helpers::get_component_instance( $element );
+					if ( ! empty( $component_instance ) ) {
+						$bricks_settings_string .= wp_json_encode( $component_instance );
+					}
+				}
+
+				// Get local element
+				else {
+					$bricks_settings_string .= wp_json_encode( $element );
+				}
+			}
 
 			// Loop over popup template data to enqueue 'bricks-animate' for popups too (@since 1.6)
 			$popup_template_ids = Database::$active_templates['popup'];
@@ -177,10 +209,8 @@ class Assets {
 					$global_element_id = ! empty( $global_element['id'] ) ? $global_element['id'] : false;
 				}
 
-				if ( $global_element_id ) {
-					if ( strpos( $bricks_settings_string, $global_element_id ) ) {
-						$bricks_settings_string .= wp_json_encode( $global_element );
-					}
+				if ( $global_element_id && strpos( $bricks_settings_string, $global_element_id ) ) {
+					$bricks_settings_string .= wp_json_encode( $global_element );
 				}
 			}
 		}
@@ -774,8 +804,10 @@ class Assets {
 	 * Generate global classes CSS string
 	 *
 	 * @return string Styles for global classes.
+	 *
+	 * @since 1.12: Add key param to generate separate CSS to avoid duplicated styles (no result template)
 	 */
-	public static function generate_global_classes() {
+	public static function generate_global_classes( $key = 'global_classes' ) {
 		if ( empty( self::$global_classes_elements ) ) {
 			return;
 		}
@@ -787,6 +819,9 @@ class Assets {
 		}
 
 		$inline_css = '';
+
+		// Ensure key is a string and not empty
+		$key = empty( $key ) ? 'global_classes' : (string) $key;
 
 		foreach ( self::$global_classes_elements as $global_class_id => $element_names ) {
 			// Get element name from class
@@ -806,7 +841,7 @@ class Assets {
 						'_cssGlobalClass' => $global_class['name'], // Special property to add global CSS class the CSS selector
 					],
 					$element_controls,
-					'global_classes'
+					$key
 				);
 			}
 		}
@@ -2491,8 +2526,8 @@ class Assets {
 	 * @return string (use & process asset-optimization)
 	 */
 	public static function generate_inline_css_from_element( $element, $controls, $css_type ) {
-		$settings                         = ! empty( $element['settings'] ) ? $element['settings'] : [];
-		$element_id                       = ! empty( $element['id'] ) ? $element['id'] : '';
+		$settings                         = ! empty( $element['settings'] ) && is_array( $element['settings'] ) ? $element['settings'] : [];
+		$element_id                       = $element['id'] ?? '';
 		self::$current_generating_element = $element;
 
 		// Update scroll snap selector in page settings (@since 1.10)
@@ -2507,7 +2542,13 @@ class Assets {
 		// STEP: Generate CSS selector
 		$css_selector = '';
 
-		if ( $element_id ) {
+		// Is component: Set selector to component root or child ID (@since 1.12)
+		$component_id = $element['cid'] ?? $element['parentComponent'] ?? false;
+		if ( $component_id ) {
+			$css_selector = ! empty( $element['cid'] ) ? ".brxe-{$element['cid']}" : ".brxe-{$element['id']}";
+		}
+
+		elseif ( $element_id ) {
 			// Check if user has set a custom CSS ID
 			$element_attribute_id = Helpers::get_element_attribute_id( $element_id, $settings );
 
@@ -2612,7 +2653,8 @@ class Assets {
 
 		// Increase specificity of popup CSS selectors for inside query loop (@since 1.9.4)
 		if ( Api::is_current_endpoint( 'load_popup_content' ) ) {
-			$css_selector = ".brx-popup$css_selector";
+			// Wrong selector if not looping (#86bx46frm; @since 1.12)
+			$css_selector = Query::is_any_looping() ? ".brx-popup$css_selector" : ".brx-popup $css_selector";
 		}
 
 		// STEP: Generate CSS rules array of every element setting
@@ -2689,7 +2731,7 @@ class Assets {
 			}
 		}
 
-		// Parse CSS (@since 1.6.2)
+		// Parse CSS
 		$custom_css = Helpers::parse_css( $custom_css );
 
 		if ( $custom_css ) {
@@ -2705,7 +2747,8 @@ class Assets {
 			$inline_css = self::generate_inline_css_for_breakpoints( $css_type, $inline_css ) . PHP_EOL;
 		}
 
-		if ( Query::is_looping() ) {
+		// Is loop OR component child (@since 1.12)
+		if ( Query::is_looping() || ! empty( $element['parentComponent'] ) ) {
 			$inline_css = str_replace( "#brxe-$element_id", ".brxe-$element_id", $inline_css );
 		}
 
@@ -2877,7 +2920,7 @@ class Assets {
 			return;
 		}
 
-		// Set the preview environment CU #3je4ru0 (@since 1.5.7)
+		// Set the preview environment
 		if ( Helpers::is_bricks_template( self::$post_id ) ) {
 			$template_preview_post_id = Helpers::get_template_setting( 'templatePreviewPostId', self::$post_id );
 
@@ -2888,23 +2931,43 @@ class Assets {
 			setup_postdata( $post );
 		}
 
-		// Flat element list (@since 1.2)
+		// Flat element list
 		self::$elements = [];
 
 		// Prepare flat list of elements for recursive calls
 		foreach ( $elements as $element ) {
-			self::$elements[ $element['id'] ] = $element;
-		}
+			// STEP: Get component (@since 1.12)
+			$component_id = $element['cid'] ?? false;
+			$component    = $component_id ? Helpers::get_component_instance( $element ) : false;
 
-		foreach ( $elements as $element ) {
-			if ( ! empty( $element['parent'] ) ) {
-				continue;
+			// Is component: Add all elements of this component to self::$elements array to generate CSS for them
+			if ( $component ) {
+				foreach ( $component['elements'] as $component_element ) {
+					// Set 'parentComponent' to add .brxe- component class to child elements
+					$component_element['parentComponent']       = $component_id;
+					self::$elements[ $component_element['id'] ] = $component_element;
+				}
 			}
 
-			self::generate_css_from_element( $element, $css_type );
+			// Is local element: Add element to self::$elements array
+			elseif ( empty( self::$elements[ $element['id'] ] ) ) {
+				// Component no longer exists: Remove component ID from element
+				if ( $component_id && ! $component ) {
+					unset( $element['cid'] );
+				}
+
+				self::$elements[ $element['id'] ] = $element;
+			}
 		}
 
-		// Reset the preview environment CU #3je4ru0 (@since 1.5.7)
+		// Get CSS for each root element (children will be processed recursively in generate_css_from_element)
+		foreach ( self::$elements as $element_id => $element ) {
+			if ( empty( $element['parent'] ) ) {
+				self::generate_css_from_element( $element, $css_type );
+			}
+		}
+
+		// Reset the preview environment
 		if ( Helpers::is_bricks_template( self::$post_id ) ) {
 			wp_reset_postdata();
 		}
@@ -2940,7 +3003,7 @@ class Assets {
 		if ( in_array( $element['name'], $loop_elements ) && isset( $settings['hasLoop'] ) && ! Query::is_looping( $element['id'] ) ) {
 			$query = new Query( $element );
 
-			// Run the query at least once to generate the minimum styles - CU #3je4ru0 (@since 1.5.7)
+			// Run the query at least once to generate the minimum styles
 			if ( empty( $query->count ) ) {
 				// Fake the loop so it doesn't run the query again
 				$query->is_looping = 1;
@@ -2964,9 +3027,9 @@ class Assets {
 			return;
 		}
 
-		// Nestable elements (container, div, slider-nested, etc.)
+		// Nestable elements (section, container, block, div, slider-nested, etc.)
 		if ( ! empty( $element['children'] ) ) {
-			foreach ( $element['children'] as $child_index => $child_id ) {
+			foreach ( $element['children'] as $child_id ) {
 				$parent_id  = $element['parent'] ?? false;
 				$element_id = $element['id'] ?? false;
 
@@ -2975,13 +3038,11 @@ class Assets {
 					continue;
 				}
 
-				if ( ! array_key_exists( $child_id, self::$elements ) ) {
-					continue;
+				if ( array_key_exists( $child_id, self::$elements ) ) {
+					$child_element = self::$elements[ $child_id ];
+
+					self::generate_css_from_element( $child_element, $css_type ); // Recursive
 				}
-
-				$child_element = self::$elements[ $child_id ];
-
-				self::generate_css_from_element( $child_element, $css_type ); // Recursive
 			}
 		}
 
@@ -3112,7 +3173,12 @@ class Assets {
 			return;
 		}
 
-		$current_element_id = self::$current_generating_element['id'];
+		$current_element_id = self::$current_generating_element['id'] ?? false;
+
+		// Return: Without element ID, could be a popup template (@since 1.12)
+		if ( ! $current_element_id ) {
+			return;
+		}
 
 		// Stop if the element ID previously processed before
 		if ( in_array( $current_element_id, self::$loop_index_elements ) ) {

@@ -434,12 +434,19 @@ class Provider_Acf extends Base {
 						break;
 
 					case 'user':
-						$filters['object_type'] = 'user';
+						if ( empty( $value ) ) {
+							$value = []; // Avoid PHP warning when using wp_list_pluck
+						} else {
+							// Support :value filter to return IDs only
+							if ( ! isset( $filters['value'] ) ) {
+								$filters['object_type'] = 'user';
+							}
 
-						// ACF allows for single or multiple users
-						$value = $field['multiple'] ? $value : [ $value ];
+							// ACF allows for single or multiple users
+							$value = $field['multiple'] ? $value : [ $value ];
 
-						$value = $return_format === 'id' ? $value : wp_list_pluck( $value, 'ID' );
+							$value = $return_format === 'id' ? $value : wp_list_pluck( $value, 'ID' );
+						}
 
 						break;
 
@@ -448,14 +455,17 @@ class Provider_Acf extends Base {
 						break;
 
 					case 'taxonomy':
-						$filters['object_type'] = 'term';
-						$filters['taxonomy']    = $field['taxonomy'];
+						// Support :value filter to return IDs only
+						if ( ! isset( $filters['value'] ) ) {
+							$filters['object_type'] = 'term';
+							$filters['taxonomy']    = $field['taxonomy'];
 
-						// NOTE: Undocumented
-						$show_as_link = apply_filters( 'bricks/acf/taxonomy/show_as_link', true, $value, $field );
+							// NOTE: Undocumented
+							$show_as_link = apply_filters( 'bricks/acf/taxonomy/show_as_link', true, $value, $field );
 
-						if ( $show_as_link ) {
-							$filters['link'] = true;
+							if ( $show_as_link ) {
+								$filters['link'] = true;
+							}
 						}
 
 						$value = is_array( $value ) ? $value : [ $value ];
@@ -465,8 +475,11 @@ class Provider_Acf extends Base {
 
 					case 'image':
 					case 'gallery':
-						$filters['object_type'] = 'media';
-						$filters['separator']   = '';
+						// Support :value filter to return IDs only
+						if ( ! isset( $filters['value'] ) ) {
+							$filters['object_type'] = 'media';
+							$filters['separator']   = '';
+						}
 
 						$value = empty( $value ) ? [] : (array) $value;
 
@@ -515,8 +528,11 @@ class Provider_Acf extends Base {
 					case 'relationship':
 						// Only field is not empty then process
 						if ( ! empty( $value ) && $return_format === 'object' ) {
-							$filters['object_type'] = 'post';
-							$filters['link']        = true;
+							// Support :value filter to return IDs only
+							if ( ! isset( $filters['value'] ) ) {
+								$filters['object_type'] = 'post';
+								$filters['link']        = true;
+							}
 
 							if ( isset( $value->ID ) ) {
 								$value = $value->ID;
@@ -1043,7 +1059,7 @@ class Provider_Acf extends Base {
 					$parent_group_names[] = $field['name'];
 
 					foreach ( $parent_group_names as $parent_group_name ) {
-						if ( isset( $loop_object[ $parent_group_name ] ) ) {
+						if ( is_array( $loop_object ) && isset( $loop_object[ $parent_group_name ] ) ) {
 							$loop_object = $loop_object[ $parent_group_name ];
 						} else {
 							return []; // Parent group name not found, return empty array
@@ -1069,7 +1085,7 @@ class Provider_Acf extends Base {
 
 					$maybe_group_name = str_replace( '_' . $field['name'], '', $name_from_dd_tag );
 
-					if ( isset( $maybe_group_name ) && isset( $loop_object[ $maybe_group_name ] ) && isset( $loop_object[ $maybe_group_name ][ $field['name'] ] ) ) {
+					if ( isset( $maybe_group_name ) && is_array( $loop_object ) && isset( $loop_object[ $maybe_group_name ] ) && isset( $loop_object[ $maybe_group_name ][ $field['name'] ] ) ) {
 						return $loop_object[ $maybe_group_name ][ $field['name'] ];
 					}
 				}
@@ -1171,5 +1187,47 @@ class Provider_Acf extends Base {
 
 	public static function flush_cache( $post_id ) {
 		wp_cache_set( 'last_changed', microtime(), 'bricks_' . get_post_type( $post_id ) );
+	}
+
+	/**
+	 * Retrieve all registered tags which are supported in WP_Query post__in parameter
+	 *
+	 * @since 1.12
+	 */
+	public function get_query_supported_tags() {
+		$field_types = [
+			'relationship',
+			'post_object',
+			'gallery',
+		];
+
+		$supported_tags = [];
+
+		foreach ( $this->tags as $tag ) {
+			if ( ! isset( $tag['field'] ) ) {
+				continue;
+			}
+
+			if ( isset( $tag['deprecated'] ) ) {
+				continue;
+			}
+
+			$field      = $tag['field'] ?? [];
+			$field_type = $field['type'] ?? '';
+
+			if ( in_array( $field_type, $field_types, true ) ) {
+				$supported_tags[] = [
+					'name'     => $tag['name'],
+					'type'     => $field_type,
+					'label'    => $tag['label'],
+					'params'   => [
+						'post__in',
+					],
+					'provider' => $tag['provider'],
+				];
+			}
+		}
+
+		return $supported_tags;
 	}
 }

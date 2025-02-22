@@ -4,7 +4,8 @@ namespace Bricks;
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
 class Frontend {
-	public static $area = 'content';
+	public static $area                    = 'content'; // header/content/footer
+	public static $template_ids_to_enqueue = []; // IDs of templates to enqueue early (@since 1.12)
 
 	/**
 	 * Elements requested for rendering
@@ -426,6 +427,8 @@ class Frontend {
 					'openAccordion'   => esc_html__( 'Open accordion', 'bricks' ),
 					'openMobileMenu'  => esc_html__( 'Open mobile menu', 'bricks' ),
 					'closeMobileMenu' => esc_html__( 'Close mobile menu', 'bricks' ),
+					'showPassword'    => esc_html__( 'Show password', 'bricks' ),
+					'hidePassword'    => esc_html__( 'Hide password', 'bricks' ),
 				],
 				'selectedFilters'         => Query_Filters::$selected_filters, // @since 1.11
 				'filterNiceNames'         => [], // @since 1.11
@@ -569,7 +572,42 @@ class Frontend {
 			return;
 		}
 
-		// Check: Get global element settings (skip if AJAX call is coming from builder via 'global_settings_checked')
+		/**
+		 * STEP: Get component 'children' and instance 'settings'
+		 *
+		 * @since 1.12
+		 */
+		$component_id       = $element['cid'] ?? false;
+		$component_instance = $component_id ? Helpers::get_component_instance( $element ) : false;
+		$component_elements = $component_instance['elements'] ?? [];
+
+		// Add component children to Frontend::$elements to render them
+		foreach ( $component_elements as $component_element ) {
+			// Set 'parentComponent' on component child to get use .brxe-{} class name on component child
+			$component_element['parentComponent'] = $component_id;
+			$component_element['instanceId']      = $element['id'];
+
+			self::$elements[ $component_element['id'] ] = $component_element;
+
+			// Popupate element with component instance settings and children
+			if ( $element['cid'] === $component_element['id'] ) {
+				// Get component instance settings
+				if ( ! empty( $component_element['settings'] ) ) {
+					$element['settings'] = $component_element['settings'];
+				}
+
+				// Get children from component
+				if ( ! empty( $component_element['children'] ) ) {
+					$element['children'] = $component_element['children'];
+				}
+			}
+		}
+
+		/**
+		 * STEP: Get global element settings
+		 *
+		 * Skip if AJAX call is coming from builder via 'global_settings_checked'.
+		 */
 		$global_settings = ! isset( $element['global_settings_checked'] ) ? Helpers::get_global_element( $element, 'settings' ) : false;
 
 		if ( is_array( $global_settings ) ) {
@@ -609,20 +647,41 @@ class Frontend {
 	public static function render_children( $element_instance = null, $tag = 'div', $extra_attributes = [] ) {
 		$element = $element_instance->element;
 
+		// Get componentInstance (builder) OR from database (frontend)
+		$component_instance = $element['componentInstance'] ?? Helpers::get_component_instance( $element );
+
 		/**
 		 * BUILDER: Replace children placeholder node with Vue components (in BricksElementPHP.vue)
 		 *
 		 * If not static builder area && not frontend && not a loop ghost node (loop index: 1, 2, 3, etc.)
 		 *
 		 * @since 1.7.1
+		 * @since 1.12: Not a component instance
 		 */
-		if ( ! isset( $element['staticArea'] ) && ! $element_instance->is_frontend && ! Query::get_loop_index() ) {
+		if (
+			! isset( $element['staticArea'] ) &&
+			! $element_instance->is_frontend &&
+			! Query::get_loop_index()
+			// && ! $component_instance // NOTE: Not in use as it prevents rendering nested elements (e.g. Tabs) on canvas
+		) {
 			return '<div class="brx-nestable-children-placeholder"></div>';
 		}
 
 		// FRONTEND: Return children HTML
 		$children = ! empty( $element['children'] ) && is_array( $element['children'] ) ? $element['children'] : [];
 		$output   = '';
+
+		// Get component 'children' (ids) and add components to Frontend::$elements array (@since 1.12)
+		$component_children = ! empty( $component_instance['children'] ) && is_array( $component_instance['children'] ) ? $component_instance['children'] : [];
+		if ( $component_children ) {
+			$children           = $component_children;
+			$component_elements = $component_instance['elements'] ?? [];
+			foreach ( $component_elements as $component_child ) {
+				// Set 'parentComponent' on component child to get use .brxe-{} class name on component child (see: set_root_attributes)
+				$component_child['parentComponent']       = $component_instance['id'];
+				self::$elements[ $component_child['id'] ] = $component_child;
+			}
+		}
 
 		foreach ( $children as $child_id ) {
 			$child = self::$elements[ $child_id ] ?? false;
@@ -694,6 +753,15 @@ class Frontend {
 		$content = '';
 
 		foreach ( $elements as $element ) {
+			/**
+			 * Skip element: Component with this 'cid' doesn't exist in database
+			 *
+			 * @since 1.12
+			 */
+			if ( ! empty( $element['cid'] ) && ! Helpers::get_component_by_cid( $element['cid'] ) ) {
+				continue;
+			}
+
 			if ( ! empty( $element['parent'] ) ) {
 				continue;
 			}
@@ -704,11 +772,7 @@ class Frontend {
 		// NOTE: Undocumented. Useful to re-add plugin actions/filters (@since 1.5.4)
 		do_action( 'bricks/frontend/after_render_data', $elements, $area );
 
-		/**
-		 * Check: Are we looping a template element
-		 *
-		 * @since 1.7: Use Query::get_loop_object_type() if check for a looping post, so user custom queries are also supported (@see #862j64bkn)
-		 */
+		// Check: Are we looping a template element
 		$looping_query_id = Query::is_any_looping();
 		$loop_object_type = Query::get_loop_object_type( $looping_query_id );
 
@@ -716,13 +780,8 @@ class Frontend {
 
 		$post = get_post( $post_id );
 
-		/**
-		 * Filter Bricks content (incl. parsing of dynamic data)
-		 *
-		 * https://academy.bricksbuilder.io/article/filter-bricks-frontend-render_data/
-		 *
-		 * @since 1.5.4 ($area argument)
-		 */
+		// Filter Bricks content (incl. parsing of dynamic data)
+		// https://academy.bricksbuilder.io/article/filter-bricks-frontend-render_data/
 		$content = apply_filters( 'bricks/frontend/render_data', $content, $post, $area );
 
 		self::$elements = [];

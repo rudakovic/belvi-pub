@@ -145,6 +145,21 @@ class Api {
 				'permission_callback' => [ $this, 'render_query_result_permissions_check' ],
 			]
 		);
+
+		/**
+		 * Get global classes categorized by their usage across the site
+		 *
+		 * @since 1.12
+		 */
+		register_rest_route(
+			self::API_NAMESPACE,
+			'/get-global-classes-site-usage',
+			[
+				'methods'             => 'GET',
+				'callback'            => [ $this, 'get_global_classes_site_usage' ],
+				'permission_callback' => [ $this, 'get_global_classes_site_usage_permissions_check' ],
+			]
+		);
 	}
 
 	/**
@@ -230,6 +245,7 @@ class Api {
 		$theme_styles     = get_option( BRICKS_DB_THEME_STYLES, false );
 		$global_classes   = get_option( BRICKS_DB_GLOBAL_CLASSES, [] );
 		$global_variables = get_option( BRICKS_DB_GLOBAL_VARIABLES, [] );
+		$color_palette    = get_option( BRICKS_DB_COLOR_PALETTE, [] ); // @since 1.12
 
 		// STEP: Add theme style to template data to import when inserting a template (@since 1.3.2)
 		foreach ( $templates as $index => $template ) {
@@ -294,6 +310,7 @@ class Api {
 			'bundles'         => Templates::get_template_bundles(),
 			'tags'            => Templates::get_template_tags(),
 			'globalVariables' => $global_variables, // @since 1.9.8
+			'colorPalette'    => $color_palette, // To allowing importing all color palettes found in the inserted template (@since 1.12)
 			'get'             => $_GET, // Pass URL params to perform additional checks (e.g. 'password' as license key, etc.)
 		];
 
@@ -757,7 +774,8 @@ class Api {
 			if ( $popup_loop_id ) {
 				$popup_id_parts = explode( ':', $popup_loop_id );
 
-				if ( count( $popup_id_parts ) === 4 ) {
+				// $popup_id_parts at least 4 parts (@since 1.12)
+				if ( count( $popup_id_parts ) >= 4 ) {
 					$query_object_type = $popup_id_parts[2];
 					$query_object_id   = $popup_id_parts[3];
 					$new_popup_loop_id = $popup_loop_id;
@@ -1011,13 +1029,11 @@ class Api {
 		}
 
 		// STEP: Set the query element pagination
-		$query_element = $indexed_elements[ $query_element_id ];
-
-		// Check if the $query_element objectType is 'post' or '' (empty)
-		// Beta only support post query
+		$query_element     = $indexed_elements[ $query_element_id ];
 		$query_object_type = isset( $query_element['settings']['query']['objectType'] ) ? sanitize_text_field( $query_element['settings']['query']['objectType'] ) : 'post';
 
-		if ( ! in_array( $query_object_type, [ 'post' ] ) ) {
+		// Return error: Not a post, term or user query
+		if ( ! in_array( $query_object_type, [ 'post', 'term', 'user' ] ) ) {
 			return rest_ensure_response(
 				[
 					'html'   => '',
@@ -1033,6 +1049,9 @@ class Api {
 		// STEP: Set active filters
 		Query_Filters::set_active_filters( $selected_filters, $post_id, $query_element_id );
 
+		// STEP: Set flag for query_vars (@since 1.12)
+		Query_Filters::set_generating_type( $query_object_type );
+
 		// STEP: generate query vars from active filters
 		$filter_query_vars = Query_Filters::generate_query_vars_from_active_filters( $query_element_id );
 
@@ -1044,26 +1063,26 @@ class Api {
 			$filter_query_vars['paged'] = $infinite_page;
 		}
 
-		// STEP: page number should be removed from original query vars because it was set when user lands on /page/n (#86c0vzgr0)
-		if ( isset( $original_query_vars['paged'] ) ) {
-			unset( $original_query_vars['paged'] );
+		// Set the page number - This is needed for term query (@since 1.12)
+		if ( isset( $filter_query_vars['paged'] ) && $filter_query_vars['paged'] > 1 && $query_object_type === 'term' ) {
+			$query_element['settings']['query']['paged'] = $filter_query_vars['paged'];
 		}
 
 		// STEP: Merge the query vars via filter, so we can override WooCommerce query vars, queryEditor query vars, etc.
 		add_filter(
 			"bricks/{$query_object_type}s/query_vars",
-			function( $vars, $settings, $element_id ) use ( $filter_query_vars, $query_element_id, $disable_query_merge, $original_query_vars ) {
+			function( $vars, $settings, $element_id ) use ( $filter_query_vars, $query_element_id, $disable_query_merge, $original_query_vars, $query_object_type ) {
 				if ( $element_id !== $query_element_id ) {
 					return $vars;
 				}
+
+				// STEP: Restore original query vars from the frontend (dynamic data parsed) (@since 1.12)
+				$vars = Query::restore_original_query_vars_from_frontend( $original_query_vars, $vars, $query_object_type );
 
 				// STEP: Original query vars should include page filters (if it's not disabled) (@since 1.11)
 				if ( ! $disable_query_merge && Query_Filters::should_apply_page_filters( $vars ) ) {
 					$vars = Query::merge_query_vars( $vars, Query_Filters::generate_query_vars_from_page_filters() );
 				}
-
-				// STEP: Merge with original query vars (Dynamic tags already rendered in frontend) (@since 1.11.1)
-				$vars = Query::merge_query_vars( $vars, $original_query_vars );
 
 				// STEP: Save the query vars before merge only once (@since 1.11.1)
 				if ( ! isset( Query_Filters::$query_vars_before_merge[ $query_element_id ] ) ) {
@@ -1071,11 +1090,16 @@ class Api {
 				}
 
 				// STEP: Merge the query vars from filters
-				return Query::merge_query_vars( $vars, $filter_query_vars );
+				$final = Query::merge_query_vars( $vars, $filter_query_vars );
+
+				return $final;
 			},
 			999, // As long as using Query Filters, the filter's query var should be the last (@since 1.11.1)
 			3
 		);
+
+		// STEP: Reset flasg (@since 1.12)
+		Query_Filters::reset_generating_type();
 
 		// Remove the parent
 		if ( ! empty( $query_element['parent'] ) ) {
@@ -1183,6 +1207,39 @@ class Api {
 
 		if ( $result === false ) {
 			return new \WP_Error( 'rest_cookie_invalid_nonce', __( 'Bricks cookie check failed' ), [ 'status' => 403 ] );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Get global classes categorized by their usage across the site
+	 *
+	 * @since 1.12
+	 */
+	public function get_global_classes_site_usage() {
+		return rest_ensure_response(
+			[
+				'data' => Helpers::scan_global_classes_site_usage()
+			]
+		);
+	}
+
+	/**
+	 * Permission check for get_global_classes_site_usage endpoint
+	 */
+	public function get_global_classes_site_usage_permissions_check( $request ) {
+		$nonce = $request->get_header( 'X-Bricks-Nonce' );
+
+		$result = wp_verify_nonce( $nonce, 'bricks-nonce-builder' );
+
+		if ( $result === false ) {
+			return new \WP_Error( 'rest_cookie_invalid_nonce', __( 'Bricks cookie check failed' ), [ 'status' => 403 ] );
+		}
+
+		// Return: Current user does not have full access
+		if ( ! Capabilities::current_user_has_full_access() ) {
+			return new \WP_Error( 'rest_current_user_does_not_have_full_access', __( 'Current user does not have full access' ), [ 'status' => 403 ] );
 		}
 
 		return true;

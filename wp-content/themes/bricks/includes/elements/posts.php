@@ -737,6 +737,7 @@ class Element_Posts extends Custom_Render_Element {
 			// Load IsotopeJS
 			if ( $use_isotope ) {
 				$wrapper_classes[] = 'isotope';
+				$wrapper_classes[] = 'isotope-before-init'; // Avoid unstyled content visible (@since 1.12)
 			}
 
 			if ( $layout === 'list' ) {

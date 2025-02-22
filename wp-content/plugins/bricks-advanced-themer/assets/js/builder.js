@@ -3394,7 +3394,7 @@ window.ADMINBRXC = {
         const self = this;
         self.savePlainClasses(target, '');
         const elementObj = self.helpers.getFinalObject(true);
-        if (typeof elementObj.settings !== "undefined" && elementObj.settings.hasOwnProperty('_cssGlobalClasses')) delete elementObj.settings._cssGlobalClasses;
+        if (typeof elementObj.settings !== "undefined" && elementObj.settings?.hasOwnProperty('_cssGlobalClasses')) delete elementObj.settings._cssGlobalClasses;
         self.closeModal(target, target.target, '#brxcPlainClassesOverlay');
         self.vueGlobalProp.$_showMessage('Classes reset successfully!');
     },
@@ -3403,7 +3403,7 @@ window.ADMINBRXC = {
 
         const counts = {};
         const contentArray = self.helpers.getContent() || [];
-        const inputArray = [].concat(...contentArray.filter(el => el.settings.hasOwnProperty('_cssGlobalClasses')).map(el => [...el.settings._cssGlobalClasses]));
+        const inputArray = [].concat(...contentArray.filter(el => el.settings?.hasOwnProperty('_cssGlobalClasses')).map(el => [...el.settings._cssGlobalClasses]));
         
         inputArray.forEach((element) => {
             counts[element] = (counts[element] || 0) + 1;
@@ -4938,7 +4938,7 @@ window.ADMINBRXC = {
             && self.vueState.activePanelTab === "content"
             && (
                 Object.values(self.globalSettings.elementFeatures).includes("lorem-ipsum") // lorem
-                || self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty === "0" // AI
+                || self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty !== "" // AI
             )
         ){
             setTimeout(() => {
@@ -4961,7 +4961,7 @@ window.ADMINBRXC = {
                     if (wrappers.length < 1) return;
                     let padding = 30;
                     if (Object.values(self.globalSettings.elementFeatures).includes("lorem-ipsum")) padding += 25;
-                    if (self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty === "0") padding += 25;
+                    if (self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty !== "") padding += 25;
                     wrappers.forEach(wrapper => {
                         if(!wrapper.querySelector('.brxc-icon-wrapper')){
                             const div = document.createElement('DIV');
@@ -6431,7 +6431,7 @@ window.ADMINBRXC = {
     },
     superPowerCSSAIMount: function(textarea, cm, type){
         const self = this;
-        if(!self.helpers.isAIActive()) return;
+        if(!self.helpers.isAIActive() || self.globalSettings.isAIApiKeyEmpty === "") return;
         
         const existing = textarea.parentElement.querySelector('#brxcSuperPowerCSSAIpromptContainer');
         if(existing) existing.remove();
@@ -7985,7 +7985,7 @@ window.ADMINBRXC = {
             Object.values(self.globalSettings.topbarShortcuts).includes('darkmode') ? self.addMenuItemtoToolbar('darkmode', 'Darkmode (ctrl+cmd+' + self.globalSettings.keyboardShortcuts.darkmode + ')', 'bottom', 'ADMINBRXC.darkMode(this)', '<i class="bricks-svg fas fa-moon" style="opacity: .75;"></i>', leftToolbar, elements) : '';
             Object.values(self.globalSettings.topbarShortcuts).includes('class-manager') ? self.addMenuItemtoToolbar('class-manager', 'Class Manager (ctrl+cmd+' + self.globalSettings.keyboardShortcuts.classManager + ')', 'bottom', 'ADMINBRXC.openClassManager("global");', '<i class="bricks-svg ion-md-options" style="opacity: .75;"></i>', leftToolbar, elements) : '';
             Object.values(self.globalSettings.topbarShortcuts).includes('global-query') ? self.addMenuItemtoToolbar('query-manager', 'Query Manager (ctrl+cmd+' + self.globalSettings.keyboardShortcuts.darkmode + ')', 'bottom', 'ADMINBRXC.queryManagerInit();ADMINBRXC.openModal(false,"#brxcQueryManagerOverlay");', '<i class="bricks-svg fas fa-infinity" style="opacity: .75;"></i>', leftToolbar, elements) : '';
-            Object.values(self.globalSettings.globalFeatures).includes('responsive-helper') ? self.addMenuItemtoToolbar('responsive-helper', 'Responsive Helper', 'bottom', 'ADMINBRXC.setResponsiveHelper(this)', '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14" class="bricks-svg"><g id="vertical-menu--navigation-vertical-three-circle-button-menu-dots"><path id="Vector" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M7 3.5c0.82843 0 1.5 -0.67157 1.5 -1.5S7.82843 0.5 7 0.5 5.5 1.17157 5.5 2 6.17157 3.5 7 3.5Z" stroke-width="1"></path><path id="Vector_2" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M7 8.5c0.82843 0 1.5 -0.67157 1.5 -1.5S7.82843 5.5 7 5.5 5.5 6.17157 5.5 7 6.17157 8.5 7 8.5Z" stroke-width="1"></path><path id="Vector_3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M7 13.5c0.82843 0 1.5 -0.6716 1.5 -1.5s-0.67157 -1.5 -1.5 -1.5 -1.5 0.6716 -1.5 1.5 0.67157 1.5 1.5 1.5Z" stroke-width="1"></path></g></svg>', middleToolbar,  dimensionsWidth) : '';
+            Object.values(self.globalSettings.globalFeatures).includes('responsive-slider') ? self.addMenuItemtoToolbar('responsive-slider', 'Responsive Slider', 'bottom', 'ADMINBRXC.toggleResponsiveSlider(this)', '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14" class="bricks-svg"><g id="vertical-menu--navigation-vertical-three-circle-button-menu-dots"><path id="Vector" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M7 3.5c0.82843 0 1.5 -0.67157 1.5 -1.5S7.82843 0.5 7 0.5 5.5 1.17157 5.5 2 6.17157 3.5 7 3.5Z" stroke-width="1"></path><path id="Vector_2" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M7 8.5c0.82843 0 1.5 -0.67157 1.5 -1.5S7.82843 5.5 7 5.5 5.5 6.17157 5.5 7 6.17157 8.5 7 8.5Z" stroke-width="1"></path><path id="Vector_3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M7 13.5c0.82843 0 1.5 -0.6716 1.5 -1.5s-0.67157 -1.5 -1.5 -1.5 -1.5 0.6716 -1.5 1.5 0.67157 1.5 1.5 1.5Z" stroke-width="1"></path></g></svg>', middleToolbar,  dimensionsWidth) : '';
             Object.values(self.globalSettings.globalFeatures).includes('zoom-out') ? self.addMenuItemtoToolbar('zoom-out', 'Zoom-out', 'bottom', 'ADMINBRXC.zoomOut();', '<i class="bricks-svg ti-zoom-out" style="opacity: .75;"></i>', middleToolbar, dimensions, 'after') : '';
             Object.values(self.globalSettings.topbarShortcuts).includes('advanced-css') ? self.addMenuItemtoToolbar('custom-css', 'Advanced CSS (ctrl+cmd+' + self.globalSettings.keyboardShortcuts.cssStylesheets + ')', 'bottom', `ADMINBRXC.openAvancedCSSModal();`, '<i class="bricks-svg fas fa-code" style="opacity: .75;"></i>', leftToolbar, elements) : '';
             Object.values(self.globalSettings.topbarShortcuts).includes('openai') ? self.addMenuItemtoToolbar('openai', 'OpenAI Assistant (ctrl+cmd+' + self.globalSettings.keyboardShortcuts.openai + ')', 'bottom', 'ADMINBRXC.openModal(false, "#brxcGlobalOpenAIOverlay")', '<i class="bricks-svg fas fa-robot" style="opacity: .75;"></i>', rightToolbar, structure) : '';
@@ -11482,7 +11482,7 @@ window.ADMINBRXC = {
         }
 
         cats += '</ul><input type="text" id="addNewCat" placeholder="+ New category" onkeyup="ADMINBRXC.addNewCategory(event);" />';
-        if (self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty === "0" && self.states.classManagerCategories.length > 1) cats += `<a class="brxc-overlay__action-btn" style="margin-top: 12px;" onclick="ADMINBRXC.classCategoriesAI(this);"><span>Assign with AI</span></a>`;
+        if (self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty !== "" && self.states.classManagerCategories.length > 1) cats += `<a class="brxc-overlay__action-btn" style="margin-top: 12px;" onclick="ADMINBRXC.classCategoriesAI(this);"><span>Assign with AI</span></a>`;
         listWrapper.innerHTML = cats;
 
         // rename cat
@@ -12660,6 +12660,7 @@ window.ADMINBRXC = {
             createIconConfig('_shapes', 'Shape Dividers', 'fas fa-shapes'),
             createIconConfig('_transform', 'Transform', 'fas fa-wand-magic-sparkles'),
             createIconConfig('_filter', 'Filters / Transitions', 'fas fa-filter'),
+            createIconConfig('_animation', 'Animations', 'fas fa-circle-play'),
             createIconConfig('_css', 'CSS', 'fab fa-css3-alt'),
             createIconConfig('_classes', 'Classes / ID', 'fas fa-id-card'),
             createIconConfig('_attributes', 'Attributes', 'fas fa-database'),
@@ -17416,7 +17417,7 @@ window.ADMINBRXC = {
             <div class="brxc-error-handling"></div>`
 
         // AI
-        if(self.helpers.isAIActive()) {
+        if(self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty !== "") {
             const isAIreadOnly = activeObj.readOnly || activeObj.id === "at-child-css";
             content += `<div id="brxcAdvancedCSSAIpromptContainer">
                             <div id="brxcAdvancedCSSAIpromptWrapper"${isAIreadOnly ? ' class="readonly"': ''}>
@@ -18352,9 +18353,10 @@ window.ADMINBRXC = {
         structureEls.forEach(el => {
             const elId = el.dataset.id;
             const elObj = self.helpers.getElementObject(elId);
+            if(!elObj) return;
 
             // builder
-            if(elObj.settings.hasOwnProperty('hideElement')){
+            if(elObj?.settings?.hasOwnProperty('hideElement')){
                 if(!self.hideElementInBuilderStates.builder.includes(elId)) {
                     self.hideElementInBuilderStates.builder.push(elId);
                     hasChanges = true;
@@ -18406,7 +18408,7 @@ window.ADMINBRXC = {
         const structure = document.querySelector('#bricks-structure');
         const x = document.querySelector('#bricks-builder-iframe').contentWindow;
         const iframeElements = x.document.querySelectorAll('.brxc-active-class');
-        const draggableCls = ['bricks-draggable-item','bricks-draggable-handle','draggable'];
+        const draggableCls = ['bricks-draggable-item','bricks-draggable-handle'];
         if (!structure) return;
     
         const els = structure.querySelectorAll('.element');
@@ -18642,6 +18644,8 @@ window.ADMINBRXC = {
         if(!self.helpers.isElementActive()) return self.syncLabelwithGlobalClassStates.active = false;
 
         const elementObj = self.helpers.getFinalObject(true);
+        if(!elementObj) return;
+
         if(elementObj.hasOwnProperty('label')) return self.syncLabelwithGlobalClassStates.active = false;
 
         // has no global class
@@ -18815,7 +18819,7 @@ window.ADMINBRXC = {
                 self.addElementtoStructure(event, target.dataset.name);
                 break;
             case 'add-component':
-                self.addComponenttoStructure(target.dataset.id, target.dataset.name);
+                self.addComponenttoStructure(event, target.dataset.id, target.dataset.name);
                 break;
             case 'jump-element':
                 self.openElement(target.dataset.id);
@@ -19298,7 +19302,7 @@ window.ADMINBRXC = {
             }
     
             // AI
-            self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty === "0" ? self.addDynamicAIIcon() : '';
+            self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty !== "" ? self.addDynamicAIIcon() : '';
     
             // Strict Editor
             self.setStrictEditorView();
@@ -19951,6 +19955,7 @@ window.ADMINBRXC = {
                         <label for="clsConverter-sync-yes" class="brxc-overlay__panel-inline-btns">Yes</label>
                     </div>`
         canvas.innerHTML = content;
+        self.classConverterPreviewCalculateDots();
     },
     setClassConverter:function(){
         const self = this;
@@ -19969,13 +19974,14 @@ window.ADMINBRXC = {
             const isComponent = el.hasOwnProperty('isComponent') && el.isComponent === true;
             const prefix = isParent ? basename : `${basename}${delimiter}`;
             const value = isParent ? '' : el.hasOwnProperty('label') ? self.helpers.formatForClasses(el.label) : el.name;
-            content += `<li style="--margin:${el.level};${isComponent ? `--builder-bg-3: var(--builder-bg-component);--builder-color-accent: var(--builder-color-component);` : ''}" class="${self.classConverterStates.active === "all" || el.componentId === self.classConverterStates.active ? 'active' : ''}${isParent ? ' parent' : ''}${isComponent ? ' component' : ''}">
+            content += `<li data-prefix="${prefix}" data-name="${value}" style="--margin:${el.level};${isComponent ? `--builder-bg-3: var(--builder-bg-component);--builder-color-accent: var(--builder-color-component);` : ''}" class="${self.classConverterStates.active === "all" || el.componentId === self.classConverterStates.active ? 'active' : ''}${isParent ? ' parent' : ''}${isComponent ? ' component' : ''}">
                             <div class="icon" data-balloon="${bricksData.elements[el.name].label}" data-balloon-pos="top-left">
                                 <i class="${bricksData.elements[el.name].icon}"></i>
                             </div>
                             <span>.${prefix}</span>`
-            content += !el.hasOwnProperty('componentParent') || el.componentParent !== true ? `<input type="text" data-id="${el.id}" value="${value}" oninput="ADMINBRXC.classConverterUpdateElement(this.dataset.id, 'label', this.value)">` : '';
-             content += el.hasOwnProperty('skip') && el.skip === true ? `<button data-balloon="click to include${isParent ? ' all children' : ''}" data-id="${el.id}" data-balloon-pos="left" onClick="ADMINBRXC.classConverterUpdateElement(this.dataset.id, 'skip', false${isParent ? ', true' : ''})">
+            content += !el.hasOwnProperty('componentParent') || el.componentParent !== true ? `<input type="text" data-id="${el.id}" value="${value}" oninput="ADMINBRXC.classConverterUpdateElement(this.dataset.id, 'label', this.value);this.parentElement.dataset.name = this.value;ADMINBRXC.classConverterPreviewCalculateDots();">` : '';
+            content += `<span class="brxc-class-exists" data-balloon-pos="left"></span>`;
+            content += el.hasOwnProperty('skip') && el.skip === true ? `<button data-balloon="click to include${isParent ? ' all children' : ''}" data-id="${el.id}" data-balloon-pos="left" onClick="ADMINBRXC.classConverterUpdateElement(this.dataset.id, 'skip', false${isParent ? ', true' : ''})">
                                                                                 <i class="fas fa-toggle-off"></i>
                                                                             </button>
                                                                         </li>` : 
@@ -19992,6 +19998,34 @@ window.ADMINBRXC = {
         const canvas = document.querySelector('#brxcClassConverterPreviewCanvas');
         content = self.setClassConverterPreview();
         canvas.innerHTML = content;
+
+        // Calculate duplicates
+        self.classConverterPreviewCalculateDots();
+    },
+    classConverterPreviewCalculateDots: function(){
+        const self = this;
+        const canvas = document.querySelector('#brxcClassConverterPreviewCanvas');
+
+        const li = canvas.querySelectorAll('li');
+        const duplicates = [];
+        li.forEach(el => {
+            const name = el.dataset.prefix+el.dataset.name;
+            const dot = el.querySelector('.brxc-class-exists')
+            const classExists = self.vueState.globalClasses.some(el => el.name === name);
+            const classDuplicate = duplicates.some(el => el === name);
+
+            if(classExists) {
+                dot.setAttribute('data-exists', 'true');
+                dot.setAttribute('data-balloon', 'Class already exists')
+            } else if(classDuplicate) {
+                dot.setAttribute('data-exists', 'duplicate');
+                dot.setAttribute('data-balloon', 'Class is duplicated within the Class Converter')
+            } else {
+                dot.setAttribute('data-exists', 'false');
+                dot.setAttribute('data-balloon', `Class doesn't exists yet`)
+            }
+            duplicates.push(name);
+        })
     },
     classConverterUpdateComponent: function(prop, value){
         const self = this;
@@ -20654,7 +20688,7 @@ window.ADMINBRXC = {
         const activeId = self.styleOverviewStates.elementObj.id;
         function addElement(originalElement, element, level, isComponent){
             let content = '';
-            content += `<li class="${element.id === activeId ? 'active' : ''}" data-id="${originalElement.id}"${isComponent ? ` data-component="${isComponent.id}"` : ''} style="--margin:${level};${isComponent ? `--builder-bg-3: var(--builder-bg-component);` : ''}"}>
+            content += `<li class="${element.id === activeId ? 'active' : ''}" data-id="${originalElement.id}"${isComponent ? ` data-component="${isComponent.id}"` : ''}${self.helpers.elementHasStyle(element.settings) ? ` data-has-style="true"` : ''}${self.helpers.elementHasClass(element.settings) ? ` data-has-class="true"` : ''} style="--margin:${level};${isComponent ? `--builder-bg-3: var(--builder-bg-component);` : ''}"}>
                             <div class="icon"><i class="${bricksData.elements[element.name].icon}"></i></div>
                             <span>${element.label ? element.label : bricksData.elements[element.name].label}</span>
                         </li>`;
@@ -20670,6 +20704,8 @@ window.ADMINBRXC = {
             element.children.forEach(id => {
                 const childOriginalElement = self.helpers.getElementObject(id, true);
                 const settings = self.helpers.getElementObject(id);
+                if(!settings) return;
+
                 const childIsComponent = isComponent || 
                     (self.vueState.hasOwnProperty('components') && 
                      self.vueState.components.find(el => el.id === settings.id));
@@ -21674,7 +21710,7 @@ window.ADMINBRXC = {
             icons.forEach(icon => {
                 icon.addEventListener('mousedown', (event) => {
                     const isElement = !!icon.dataset.name || false;
-                    isElement ? self.addElementtoStructure(event, icon.dataset.name) : self.addComponenttoStructure(icon.dataset.componentId, icon.dataset.componentName);
+                    isElement ? self.addElementtoStructure(event, icon.dataset.name) : self.addComponenttoStructure(event, icon.dataset.componentId, icon.dataset.componentName);
                 });
 
                 let balloon = null;
@@ -21905,55 +21941,70 @@ window.ADMINBRXC = {
     },
     addElementtoStructure: function(event, elName){
         const self = this;
-        const id = self.vueGlobalProp.$_generateId();
 
-        const newElement = self.vueGlobalProp.$_addNewElement(
-            {
-                element: {
-                    name:elName,
-                    id: id,
-                }
-            }, 
-            {shiftKey: event.shiftKey}, 
-            true);
-        FRAMEBRXC.vueGlobalProp.$_addNewElement(
-            {
-                element: {
-                    name:elName,
-                    id: id,
-                }
-            }, 
-            {shiftKey: event.shiftKey}, 
-            true);
-        // Tag Manager
-        if (self.helpers.isBuilderTweaksTabActive('structure-panel') && Object.values(self.globalSettings.structurePanelIcons).includes("tags")) {
-            setTimeout(() => self.showTagInStructurePanel(), 0);
-        }
+        setTimeout(() => {
+            const element = self.vueGlobalProp.$_createElement({ name: elName });
+            const params = { element: element };
 
-        // Focus element on shift click
-        if (elName === "section" && event && event.shiftKey) {
-            setTimeout(() => {
-                const section = self.helpers.getElementObject(newElement.id);
-                const container = self.helpers.getElementObject(section.children[0])
-                self.vueState.activeId = container.id;
-                self.helpers.activeElement = container;
-            }, 0)
-        }
+            const newElement = self.vueGlobalProp.$_addNewElement(params, { shiftKey: event.shiftKey }, true);
+        
+            // Tag Manager
+            if (self.helpers.isBuilderTweaksTabActive('structure-panel') && Object.values(self.globalSettings.structurePanelIcons).includes("tags")) {
+                setTimeout(() => self.showTagInStructurePanel(), 0);
+            }
+
+            if (elName === "section"){
+
+                setTimeout(() => {
+                    // Expand
+                    const el = document.querySelector(`#bricks-structure .element[data-id="${newElement.id}"] .toggle`)
+                    if(el) el.click();
+
+                    // Focus element
+                    const section = self.helpers.getElementObject(newElement.id);
+                    const container = self.helpers.getElementObject(section.children[0])
+                    self.vueState.activeId = container.id;
+                    
+                },0)
+            }
+        }, 0)
     },
-    addComponenttoStructure: function(componentId, componentName){
+    addComponenttoStructure: function(event, componentId, componentName){
         const self = this;
 
-        self.vueGlobalProp.$_addToStore({
-            id: self.vueGlobalProp.$_generateId(),
-            cid: componentId,
-            name: componentName, 
-            children: []
-        })
+        setTimeout(() => {
+            const id = self.vueGlobalProp.$_generateId();
+            const parent = self.helpers.isElementActive() && self.vueGlobalProp.$_isNestable(self.vueState.activeElement) ? self.vueState.activeElement.id : 0;
+            self.vueGlobalProp.$_addToStore({
+                id: id,
+                parent: parent,
+                cid: componentId,
+                name: componentName, 
+                children: []
+            })
+            if(parent !== 0){
+                const objChild = self.helpers.getElementObject(id, true);
+                const objParent = self.helpers.getElementObject(parent, true);
 
-        // Tag Manager
-        if (self.helpers.isBuilderTweaksTabActive('structure-panel') && Object.values(self.globalSettings.structurePanelIcons).includes("tags")) {
-            setTimeout(() => self.showTagInStructurePanel(), 0);
-        }
+                if (objChild && objParent) {
+                    objChild.parent = parent;
+                    objParent.children.push(id);
+                }
+            }
+
+            // Tag Manager
+            if (self.helpers.isBuilderTweaksTabActive('structure-panel') && Object.values(self.globalSettings.structurePanelIcons).includes("tags")) {
+                setTimeout(() => self.showTagInStructurePanel(), 0);
+            }
+
+            setTimeout(() => {
+                // Focus element on shift click
+                if (event?.shiftKey) {
+                    self.vueState.activePanel = "element";
+                    self.vueState.activeId = id;
+                }
+            },0)
+        },0)
     },
     customComponentStates: {
         search: '',
@@ -22366,18 +22417,16 @@ window.ADMINBRXC = {
         const self = this;
         const arr = brxcNestedElementsDefault.concat(self.globalSettings.customComponentsElements);
         const item = arr.find(el => el.id === id);
-        const parent = item.elements[0]
 
         const newComponent = {
-            id: parent.id,
-            name: parent.name,
-            children: parent.children,
+            id: item.elements[0].id,
             desc: '',
-            elements: JSON.parse(JSON.stringify(item.elements.slice(1)).replaceAll('#brxe-', '.brxe-')),
-            category: item.category,
-            label: parent.label,
+            elements: JSON.parse(JSON.stringify(item.elements).replaceAll('#brxe-', '.brxe-')),
+            category: self.globalSettings.customComponentsCategories.find(el => el.id === item.category)?.label,
             properties: [],
-            settings: JSON.parse(JSON.stringify(parent.settings).replaceAll('#brxe-', '.brxe-'))
+            _created: Date.now(),
+            _user_id: bricksData.loadData.currentUserId,
+            _version: bricksData.version
         }
         self.vueState.components.push(newComponent);
         self.vueGlobalProp.$_showMessage(`${item.label} has been converted as Component!`);
@@ -23281,37 +23330,62 @@ window.ADMINBRXC = {
         self.generateColorCSS();
         self.refreshColorPrefix();
     },
-    setResponsiveHelper: function(item){
+    toggleResponsiveSlider: function(item){
         const self = this;
         const slider = document.querySelector('#brxcResponsiveBar')
         if(!slider) return;
         if(item.classList.contains('active')) {
             item.classList.remove('active');
             slider.classList.remove('active');
+            self.vueState.previewWrapperHeight = self.vueState.previewWrapperHeight + 66
         } else {
             item.classList.add('active');
             slider.classList.add('active');
+            self.vueState.previewWrapperHeight = self.vueState.previewWrapperHeight - 66
         } 
     },
-    setResponsiveBar: function(){
+    setResponsiveSlider: function() {
         const self = this;
-        document.body.classList.add('responsive-helper');
+        const isMobileFirst = self.vueGlobalProp.$_isMobileFirst._value;
+        const rulerArr = isMobileFirst 
+            ? [0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000] 
+            : [1800, 1600, 1400, 1200, 1000, 800, 600, 400, 200, 0];
+        
         const iframePreview = document.querySelector('#bricks-preview');
+        if (!iframePreview) return; // Ensure element exists before proceeding
+    
         const container = document.createElement('div');
         container.id = "brxcResponsiveBar";
-        let content = `<div class="brxc-range-input-wrapper brxc__range"><div class="brxc-range-input-container"><input type="range" min="1" max="2000" value="1201" class="brxc-input__range${self.vueGlobalProp.$_isMobileFirst._value ? ' reverse' : ''}" oninput="ADMINBRXC.responsiveBar(this);">`
-        self.vueState.breakpoints.forEach((bp, index) => {
-            content += index > 0 ? `<div class="bp-marker" style="${self.vueGlobalProp.$_isMobileFirst._value ? 'left' : 'right'}: calc((${bp.width - 1} - 0) / (2000 - 0) * 100%)"></div>` : '';
-        })
-        content += `<div class="ruler">`;
-        const rulerArr = self.vueGlobalProp.$_isMobileFirst._value ? [0,200,400,600,800,1000,1200,1400,1600,1800,2000] : [1800,1600,1400,1200,1000,800,600,400,200,0];
-        rulerArr.forEach( r => {
-            content += `<div class="interval">${r}px</div>`
-        }) 
-        content += `</div>`;
-        content += `</div></div>`;
-        container.innerHTML = content;
+    
+        // Generate breakpoints markers
+        const breakpointMarkers = self.vueState.breakpoints
+            .slice(1) // Skip the first item (index > 0)
+            .map(bp => `<div class="bp-marker" style="${isMobileFirst ? 'left' : 'right'}: calc((${bp.width - 1} - 0) / (2000 - 0) * 100%)"></div>`)
+            .join('');
+    
+        // Generate ruler intervals
+        const rulerIntervals = rulerArr
+            .map(r => `<div class="interval">${r}px</div>`)
+            .join('');
+    
+        // Construct content
+        container.innerHTML = `
+            <div class="brxc-range-input-wrapper brxc__range">
+                <div class="brxc-range-input-container">
+                    <input type="range" min="1" max="2000" value="1201" class="brxc-input__range${isMobileFirst ? ' reverse' : ''}" 
+                        oninput="ADMINBRXC.responsiveBar(this);">
+                    ${breakpointMarkers}
+                    <div class="ruler">${rulerIntervals}</div>
+                </div>
+            </div>
+        `;
+    
         iframePreview.prepend(container);
+    },
+    setResponsiveHelper: function(){
+        const self = this;
+        const isMobileFirst = self.vueGlobalProp.$_isMobileFirst._value;
+        document.body.setAttribute('data-responsive-helper', 'true');
 
         // listener
         const toolbarItems = document.querySelectorAll('#bricks-toolbar li');
@@ -23342,58 +23416,67 @@ window.ADMINBRXC = {
         }
         
         toolbarItems.forEach(el => {
-            const slider = document.querySelector('#brxcResponsiveBar input');
-            if(!slider) return;
             el.addEventListener('click', () => {
-                const isMobileFirst = self.vueGlobalProp.$_isMobileFirst._value;
-                if(el.classList.contains('breakpoint')){
-                    const bp = self.vueState.breakpoints.find(el => el && el.key === self.vueState.breakpointActive)
-                    const bpNext = self.vueState.breakpoints[self.vueState.breakpoints.indexOf(bp) + 1];
-                    if(el.dataset.click === 'true') {
-                        toolbarItems.forEach(el => el.removeAttribute('data-click'))
-                        let minValue;
-
-                        // Calculate  minValue
-                        if(isMobileFirst){
-                            self.vueState.previewWrapperWidth > bp.width ? minValue = self.vueState.previewWrapperWidth : minValue = 1400
+                const slider = document.querySelector('#brxcResponsiveBar input');
+                // Responsive Helper
+                if(Object.values(self.globalSettings.globalFeatures).includes('responsive-helper')){
+                    if(el.classList.contains('breakpoint')){
+                        const bp = self.vueState.breakpoints.find(el => el && el.key === self.vueState.breakpointActive)
+                        const bpNext = self.vueState.breakpoints[self.vueState.breakpoints.indexOf(bp) + 1];
+                        if(el.dataset.click === 'true') {
+                            toolbarItems.forEach(el => el.removeAttribute('data-click'))
+                            let minValue;
+    
+                            // Calculate  minValue
+                            if(isMobileFirst){
+                                self.vueState.previewWrapperWidth > bp.width ? minValue = self.vueState.previewWrapperWidth : minValue = 1400
+                            } else {
+                                isMobile(bp) && bp.hasOwnProperty('widthBuilder') ? minValue = bp.widthBuilder : minValue = 320
+                            }
+                            
+                            // Calculate previewWidth
+                            if(bpNext) {
+                                const nextValue = isMobileFirst ? bpNext.width - 1 : bpNext.width + 1;
+                                self.vueState.previewWidth = nextValue;
+                            } else {
+                                self.vueState.previewWidth = minValue
+                            }
                         } else {
-                            isMobile(bp) && bp.hasOwnProperty('widthBuilder') ? minValue = bp.widthBuilder : minValue = 320
-                        }
-                        
-                        // Calculate previewWidth
-                        if(bpNext) {
-                            const nextValue = isMobileFirst ? bpNext.width - 1 : bpNext.width + 1;
-                            self.vueState.previewWidth = nextValue;
-                        } else {
-                            self.vueState.previewWidth = minValue
-                        }
-                    } else {
-                        toolbarItems.forEach(el => el.removeAttribute('data-click'))
-                        el.setAttribute('data-click', 'true');
-                        if((!isMobileFirst && isDesktop(bp) && bp.hasOwnProperty('widthBuilder')) || (isMobileFirst && isMobile(bp) && bp.hasOwnProperty('widthBuilder'))){
-                            self.vueState.previewWidth = bp.widthBuilder;
-                        } else if(!isMobileFirst && isDesktop(bp) && self.vueState.previewWrapperWidth > bp.width){
-                            self.vueState.previewWidth = self.vueState.previewWrapperWidth;
-                        } else {
-                            self.vueState.previewWidth = bp.width;
+                            toolbarItems.forEach(el => el.removeAttribute('data-click'))
+                            el.setAttribute('data-click', 'true');
+                            if((!isMobileFirst && isDesktop(bp) && bp.hasOwnProperty('widthBuilder')) || (isMobileFirst && isMobile(bp) && bp.hasOwnProperty('widthBuilder'))){
+                                self.vueState.previewWidth = bp.widthBuilder;
+                            } else if(!isMobileFirst && isDesktop(bp) && self.vueState.previewWrapperWidth > bp.width){
+                                self.vueState.previewWidth = self.vueState.previewWrapperWidth;
+                            } else {
+                                self.vueState.previewWidth = bp.width;
+                            }
                         }
                     }
                 }
-                
-                slider.value = self.vueState.previewWidth;
+
+                // Update slider
+                if(slider) slider.value = self.vueState.previewWidth;
             })
 
-            const input = el.querySelector('input');
-            if(!input) return;
-            input.addEventListener('keyup', () => {
-                setTimeout(() => {
-                    slider.value = self.vueState.previewWidth;
-                },1)
-            })
+
+            // Update slide from text inputs
+            const slider = document.querySelector('#brxcResponsiveBar input');
+            if(slider){
+                const input = el.querySelector('input');
+                if(!input) return;
+                input.addEventListener('keyup', () => {
+                    setTimeout(() => {
+                        slider.value = self.vueState.previewWidth;
+                    },1)
+                })
+            }
         })
 
-        const firstBp = document.querySelectorAll('#bricks-toolbar li.breakpoint')[0];
-        if(firstBp) firstBp.setAttribute('data-click', 'true');
+        if(Object.values(self.globalSettings.globalFeatures).includes('responsive-helper')){
+            const firstBp = document.querySelectorAll('#bricks-toolbar li.breakpoint')[0];
+            if(firstBp) firstBp.setAttribute('data-click', 'true'); 
+        }
 
     },
     responsiveBar: function(target){
@@ -24626,47 +24709,39 @@ window.ADMINBRXC = {
         const self = this;
         if(!bricksData.loadData.userCan.uploadSvg) return;
 
-        self.vue._context.components['control-icon'].data = function() {
-            var e;
-            return {
-                showPopup: !1,
-                library: 'svg',
-                searchFor: "",
-                libraries: {
-                    placeholder: this.i18n.selectLibrary,
-                    options: {
-                        fontawesomeBrands: "Fontawesome - Brands",
-                        fontawesomeRegular: "Fontawesome - Regular",
-                        fontawesomeSolid: "Fontawesome - Solid",
-                        ionicons: "Ionicons",
-                        themify: "Themify"
-                    }
-                },
-                icons: {
-                    fontawesomeBrands: {},
-                    fontawesomeRegular: {},
-                    fontawesomeSolid: {},
-                    fontawesome: {},
-                    ionicons: {},
-                    themify: {}
-                }
-            }
-        }
-    },
-    iconControls: function(){
-        const self = this;
-        if(!bricksData.loadData.userCan.uploadSvg) return;
+        const svgFirst = Object.values(self.globalSettings.defaultElementFeatures).includes("icon-svg");
+        const removeOptions = Object.values(self.globalSettings.defaultElementFeatures).includes("remove-icon-library-options");
 
+        if(!svgFirst && !removeOptions) return;
+
+        // Set default icon library to SVG on all elements
+        for (const [key, element] of Object.entries(bricksData.elements)) {
+            for (const [controlKey, control] of Object.entries(element.controls)) {
+                if (control.type === "icon" && "default" in control) {
+                    control.default = { library: "svg" };
+                }
+            }
+        }
+
+        // Set options inside the component
+        const options = removeOptions ? {} : {
+            fontawesomeBrands: "Fontawesome - Brands",
+            fontawesomeRegular: "Fontawesome - Regular",
+            fontawesomeSolid: "Fontawesome - Solid",
+            ionicons: "Ionicons",
+            themify: "Themify",
+        };
+
+        // Overwrite the default data
         self.vue._context.components['control-icon'].data = function() {
             var e;
             return {
                 showPopup: !1,
-                library: 'svg',
+                library: (null === (e = this.value) || void 0 === e ? 'svg' : e.library) || 'svg',
                 searchFor: "",
                 libraries: {
                     placeholder: this.i18n.selectLibrary,
-                    options: {
-                    }
+                    options: options
                 },
                 icons: {
                     fontawesomeBrands: {},
@@ -24678,6 +24753,26 @@ window.ADMINBRXC = {
                 }
             }
         }
+
+        // Set value to the element when the component is mounted
+        self.vue._context.components['control-icon'].watch.showPopup = function(e) {
+            var t = this;
+            const settings = t._.props.value
+            if(e && (void 0 === settings || Object.keys(settings).length < 2)){
+                this.library || (this.searchFor = ""),
+                this.$emit("input", {
+                    library: this.library,
+                })
+            }
+            this.$nextTick((function() {
+                    if (e) {
+                        var n = !!t.$refs.icons && t.$refs.icons.querySelector(".active");
+                        n && (t.$refs.icons.scrollTop = n.offsetTop)
+                    }
+                }
+            ))
+        }
+        
     },
     setSearchStructure: function(){
         const self = this;
@@ -24691,7 +24786,7 @@ window.ADMINBRXC = {
         const search = document.createElement('DIV');
         search.id = 'brxcSearchStructureWrapper';
         search.setAttribute('class', 'brxc-overlay__search-box');
-        search.innerHTML = `<input id= "brxcSearchStructure"type="search" class="iso-search" name="dynamic-data-search" placeholder="Search by element name, label, global class, CSS ID, etc...">
+        search.innerHTML = `<input id= "brxcSearchStructure"type="search" class="iso-search" name="dynamic-data-search" placeholder="Search by element name, label, HTML tag, global class, CSS ID, etc...">
                             <div class="iso-search-icon">
                                 <i class="bricks-svg ti-search"></i>
                             </div>
@@ -24734,11 +24829,12 @@ window.ADMINBRXC = {
             const elementObj = self.vueGlobalProp.$_getElementConfig(obj.name);
             const nameMatch = elementObj.label.toLowerCase().includes(searchTerm);
             const labelMatch = obj.label ? obj.label.toLowerCase().includes(searchTerm) : false;
+            const tagMatch = obj.hasOwnProperty('settings') && obj.settings.tag ? obj.settings.tag.toLowerCase().includes(searchTerm) : self.vueGlobalProp.$_getElementConfig(obj.name)?.tag.toLowerCase().includes(searchTerm);
             const globalClassMatch = obj.hasOwnProperty('settings') && obj.settings.hasOwnProperty('_cssGlobalClasses') ? obj.settings._cssGlobalClasses.some(el => self.vueGlobalProp.$_getGlobalClass(el)?.name.toLowerCase().includes(searchTerm)) : false;
             const textMatch = obj.hasOwnProperty('settings') && obj.settings.hasOwnProperty('text') ? obj.settings.text.toLowerCase().includes(searchTerm) : false;
             const idMatch = obj.id.toLowerCase().includes(searchTerm);
             const cssIdMatch = obj.hasOwnProperty('settings') && obj.settings.hasOwnProperty('_cssId') ? obj.settings._cssId.toLowerCase().includes(searchTerm) : false;
-            return nameMatch || labelMatch || globalClassMatch|| textMatch || idMatch || cssIdMatch;
+            return nameMatch || labelMatch || tagMatch || globalClassMatch|| textMatch || idMatch || cssIdMatch;
 
         }
 
@@ -24793,7 +24889,7 @@ window.ADMINBRXC = {
         self.hideEmptyElementCategory();
 
         // AI
-        (self.helpers.isAIActive()) ? self.initAcc('.accordion.v1', true) : '';
+        (self.helpers.isAIActive() && self.globalSettings.isAIApiKeyEmpty !== "") ? self.initAcc('.accordion.v1', true) : '';
 
         // Classes & Styles
         self.helpers.isClassesAndStylesTabActive() && self.globalSettings.generalCats.classesAndStyles.includes('class-importer') ? self.importedClasses() : '';
@@ -24804,10 +24900,11 @@ window.ADMINBRXC = {
         //// Topbar
         if(self.helpers.isBuilderTweaksTabActive('global-features')){
             self.initGridGuide();
-            if(Object.values(self.globalSettings.globalFeatures).includes('responsive-helper')){
-                self.setResponsiveBar();
-                setTimeout(() => {document.querySelector('#bricks-toolbar li.responsive-helper').click()}, 500)
+            if(Object.values(self.globalSettings.globalFeatures).includes('responsive-slider')){
+                self.setResponsiveSlider();
+                setTimeout(() => {document.querySelector('#bricks-toolbar li.responsive-slider').click()}, 500)
             }
+            self.setResponsiveHelper();
             self.populateClassCategories();
         }
 
@@ -24867,13 +24964,9 @@ window.ADMINBRXC = {
             if(Object.values(self.globalSettings.elementFeatures).includes("color-default-raw")){
                 self.colorControls();
             }
-            if(Object.values(self.globalSettings.defaultElementFeatures).includes("icon-svg")){
-                self.iconControlsSVG();
-            }
-            if(Object.values(self.globalSettings.defaultElementFeatures).includes("remove-icon-library-options")){
-                self.iconControls();
-            }
             Object.values(self.globalSettings.defaultElementFeatures.length > 0) ? self.setDefaultElements() : '';
+
+            self.iconControlsSVG();
             
         }
 

@@ -658,26 +658,6 @@ class AT__Builder{
                         'inline'     => true,
                         'fullAccess' => true,
                     ];
-                    $data['controls']['pageTransitionSeperatorElements'] = [
-                        'group'    => 'pageTransition',
-                        'label' => esc_html__( 'Elements animation', 'bricks' ),
-                        'type'  => 'separator',
-                        'description' => esc_html__( 'Leave empty if you don\'t plan to animate specific elements.' ),
-                        'required'    => [ 'activatePageTransition', '=', true ],
-                    ];
-                    $data['controls']['pageTransitionElements'] = [
-                        'group'      => 'pageTransition',
-                        'label'      => esc_html__( 'Select the type of Page Transition' ),
-                        'type'       => 'select',
-                        'options'    => [
-                            'origin' => esc_html__( 'Origin Page' ),
-                            'target' => esc_html__( 'Target Page' ),
-                            'both' => esc_html__( 'Both' ),
-                        ],
-                        'inline'     => true,
-                        'fullAccess' => true,
-                        'required'    => [ 'activatePageTransition', '=', true ],
-                    ];
                     $data['controls']['pageTransitionSeperatorOld'] = [
                         'group'    => 'pageTransition',
                         'label' => esc_html__( 'Root Animation - Old', 'bricks' ),
@@ -736,12 +716,8 @@ class AT__Builder{
                         'hasVariables' => true,
 			            'pasteStyles'  => true,
                         'placeholder' => esc_html__( '{
-0%: {
-opacity: 0;
-}
-100%: {
-opacity: 1;
-}
+    0% { opacity: 0; }
+    100% { opacity: 1; }
 }', 'bricks' ),
                         'fullAccess' => true,
                         'required'    => [ 'activatePageTransition', '=', true ],
@@ -804,12 +780,8 @@ opacity: 1;
                         'hasVariables' => true,
 			            'pasteStyles'  => true,
                         'placeholder' => esc_html__( '{
-0%: {
-opacity: 0;
-}
-100%: {
-opacity: 1;
-}
+    0% { opacity: 0; }
+    100% { opacity: 1; }
 }', 'bricks' ),
                         'fullAccess' => true,
                         'required'    => [ 'activatePageTransition', '=', true ],
@@ -875,6 +847,14 @@ opacity: 1;
 
                         self::repositionArrayElement($control_groups, "_filter", array_search('_css', array_keys($control_groups)));
                     }
+                    if(in_array("animation-tab",  $settings) ){
+                        $control_groups['_animation'] = [
+                            'tab'      => 'style',
+                            'title'    => esc_html__( 'Animations', 'Bricks' ),
+                            'fullAccess' => true,
+                        ];
+                        self::repositionArrayElement($control_groups, "_animation", array_search('_css', array_keys($control_groups)));
+                    } 
 
                     if(in_array("classes-tab",  $settings) ){
                         $control_groups['_classes'] = [
@@ -1559,32 +1539,25 @@ opacity: 1;
                     // Page Transition
 
                     if( AT__Helpers::is_value($brxc_acf_fields, 'enable_page_transition_elements') ){
-                        $controls['pageTransitionType'] = [
+                        $controls['pageTransitionName'] = [
                             'group'    => '_pageTransition',
-                            'label'    => esc_html__( 'Select the Transition Type' ),
-                            'type'     => 'select',
-                            'options'     => [
-                                'wrapper' => esc_html__( 'Wrapper', 'bricks' ),
-                                'animated_element' => esc_html__( 'Animated Element', 'bricks' ),
-                            ],
+                            'label'    => esc_html__( 'Transition Name' ),
+                            'type'     => 'text',
+                            'placeholder' => esc_html__( 'my-transition', 'bricks' ),
                             'inline'   => true,
                             'fullAccess' => true,
                         ];
-                        $controls['pageTransitionName'] = [
+                        $controls['pageTransitionNameInfo'] = [
+                            'type'     => 'info',
                             'group'    => '_pageTransition',
-                            'label'    => esc_html__( 'Select the Animation Name' ),
-                            'type'     => 'text',
-                            'placeholder' => esc_html__( 'my-animation', 'bricks' ),
-                            'inline'   => true,
-                            'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
+                            'content'  => esc_html__( 'The Transition Name must be unique across the entire page. Use the same Transition Name for both the origin and target elements. If you\'re running a transition inside a query loop, be sure to append the post ID to the Transition Name to prevent conflicts.', 'bricks' ),
                         ];
                         $controls['pageTransitionSeperatorOld'] = [
                             'tab'   => 'content',
                             'group'    => '_pageTransition',
                             'label' => esc_html__( 'Old', 'bricks' ),
+                            'description' => esc_html__( 'Add custom animation settings to the "old" snapshot of this page when loading. (optional)', 'bricks' ),
                             'type'  => 'separator',
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionDurationOld'] = [
                             'group'    => '_pageTransition',
@@ -1594,7 +1567,6 @@ opacity: 1;
                             'units' => true,
                             'placeholder' => esc_html__( '300ms', 'bricks' ),
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionDelayOld'] = [
                             'group'    => '_pageTransition',
@@ -1604,7 +1576,6 @@ opacity: 1;
                             'units' => true,
                             'placeholder' => esc_html__( '0ms', 'bricks' ),
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionTimingOld'] = [
                             'group'    => '_pageTransition',
@@ -1613,7 +1584,6 @@ opacity: 1;
                             'inline'   => true,
                             'placeholder' => esc_html__( 'ease-in-out', 'bricks' ),
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionFillModeOld'] = [
                             'group'    => '_pageTransition',
@@ -1627,7 +1597,6 @@ opacity: 1;
                             ],
                             'inline'   => true,
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionKeyframeOld'] = [
                             'group'    => '_pageTransition',
@@ -1637,22 +1606,17 @@ opacity: 1;
                             'hasVariables' => true,
                             'pasteStyles'  => true,
                             'placeholder' => esc_html__( '{
-  0%: {
-    opacity: 0;
-  }
-  100%: {
-    opacity: 1;
-  }
+    0% { opacity: 0; }
+    100% { opacity: 1; }
 }', 'bricks' ),
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionSeperatorNew'] = [
                             'tab'   => 'content',
                             'group'    => '_pageTransition',
                             'label' => esc_html__( 'New', 'bricks' ),
+                            'description' => esc_html__( 'Add custom animation settings to the new DOM of this page when loading. (optional)', 'bricks' ),
                             'type'  => 'separator',
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionDurationNew'] = [
                             'group'    => '_pageTransition',
@@ -1662,7 +1626,6 @@ opacity: 1;
                             'units' => true,
                             'placeholder' => esc_html__( '300ms', 'bricks' ),
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionDelayNew'] = [
                             'group'    => '_pageTransition',
@@ -1672,7 +1635,6 @@ opacity: 1;
                             'units' => true,
                             'placeholder' => esc_html__( '0ms', 'bricks' ),
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionTimingNew'] = [
                             'group'    => '_pageTransition',
@@ -1681,7 +1643,6 @@ opacity: 1;
                             'inline'   => true,
                             'placeholder' => esc_html__( 'ease-in-out', 'bricks' ),
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionFillModeNew'] = [
                             'group'    => '_pageTransition',
@@ -1695,7 +1656,6 @@ opacity: 1;
                             ],
                             'inline'   => true,
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
                         $controls['pageTransitionKeyframeNew'] = [
                             'group'    => '_pageTransition',
@@ -1705,16 +1665,248 @@ opacity: 1;
                             'hasVariables' => true,
                             'pasteStyles'  => true,
                             'placeholder' => esc_html__( '{
-  0%: {
-    opacity: 0;
-  }
-  100%: {
-    opacity: 1;
-  }
+    0% { opacity: 0; }
+    100% { opacity: 1; }
 }', 'bricks' ),
                             'fullAccess' => true,
-                            'required'    => [ 'pageTransitionType', '=', [ 'animated_element' ] ],
                         ];
+                    }
+
+                    if(in_array("animation-tab",  $settings) ){
+                        $controls['infoAttributes'] = [
+                            'tab'     => 'style',
+                            'group'   => '_animation',
+                            'content' => esc_html__( 'Both animation-name and animation-duration are required for the animation to function correctly.', 'bricks' ),
+                            'type'    => 'info',
+                        ];
+
+                        $controls['_atAnimationName'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Name' ),
+                            'type'     => 'text',
+                            'css'   => [
+                                [
+                                    'property' => 'animation-name',
+                                ],
+                            ],
+                            'inline'   => true,
+                            'placeholder' => 'myAnimation',
+                            'fullAccess' => true,
+                        ];
+
+                        $controls['_atAnimationDuration'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Duration' ),
+                            'type'     => 'text',
+                            'css'   => [
+                                [
+                                    'property' => 'animation-duration',
+                                ],
+                            ],
+                            'placeholder' => '0ms',
+                            'unit' => 'ms',
+                            'units' => true,
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                        $controls['_atAnimationDirection'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Direction' ),
+                            'type'     => 'select',
+                            'options'  => [
+                                'normal' => 'normal',
+                                'reverse' => 'reverse',
+                                'alternate' => 'alternate',
+                                'alternate-reverse' => 'alternate-reverse'
+                            ],
+                            'css'   => [
+                                [
+                                    'property' => 'animation-direction',
+                                ],
+                            ],
+                            'placeholder' => 'normal',
+                            'add' => true,
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                        $controls['_atAnimationDelay'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Delay' ),
+                            'type'     => 'text',
+                            'css'   => [
+                                [
+                                    'property' => 'animation-delay',
+                                ],
+                            ],
+                            'placeholder' => '0ms',
+                            'unit' => 'ms',
+                            'units' => true,
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                        $controls['_atAnimationFillMode'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Fill Mode' ),
+                            'type'     => 'select',
+                            'options'  => [
+                                'none' => 'none',
+                                'forwards' => 'forwards',
+                                'backwards'  => 'backwards',
+                                'both'  => 'both'
+                            ],
+                            'css'   => [
+                                [
+                                    'property' => 'animation-fill-mode',
+                                ],
+                            ],
+                            'placeholder' => 'none',
+                            'add' => true,
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                        $controls['_atAnimationIterationCount'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Iteration Count' ),
+                            'type'     => 'number',
+                            'css'   => [
+                                [
+                                    'property' => 'animation-iteration-count',
+                                ],
+                            ],
+                            'placeholder' => '1',
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                        $controls['_atAnimationPlayState'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Play State' ),
+                            'type'     => 'select',
+                            'options'  => [
+                                'running' => 'running',
+                                'paused'  => 'paused'
+                            ],
+                            'css'   => [
+                                [
+                                    'property' => 'animation-play-state',
+                                ],
+                            ],
+                            'placeholder' => 'running',
+                            'add' => true,
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                        $controls['_atAnimationTimingFunction'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Timing Function' ),
+                            'type'     => 'select',
+                            'options'  => [
+                                'ease' => 'ease',
+                                'ease-in' => 'ease-in',
+                                'ease-out' => 'ease-out',
+                                'ease-in-out' => 'ease-in-out',
+                                'linear' => 'linear',
+                                'step-start' => 'step-start',
+                                'step-end' => 'step-end'
+                            ],
+                            'css'   => [
+                                [
+                                    'property' => 'animation-timing-function',
+                                ],
+                            ],
+                            'placeholder' => 'ease',
+                            'add' => true,
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                        $controls['atAnimationTimelineSep'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'type'  => 'separator',
+                            'label' => esc_html__( 'Animation Timeline', 'bricks' ),
+                            'description' => sprintf(
+                                esc_html__( 'The following controls are still experimentals, but they won\'t break your layout on unsupported browsers. More info on %s', 'bricks' ),
+                                '<a href="https://developer.mozilla.org/en-US/docs/Web/CSS/animation-timeline" target="_blank">https://developer.mozilla.org/en-US/docs/Web/CSS/animation-timeline.</a>'
+                            ),
+                            'fullAccess' => true,
+                        ];
+                        $controls['_atAnimationTimeline'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Timeline' ),
+                            'type'     => 'select',
+                            'options'  => [
+                                'none' => 'none',
+                                'auto' => 'auto',
+                                'view()' => 'view()',
+                                'scroll()' => 'scroll()'
+                            ],
+                            'css'   => [
+                                [
+                                    'property' => 'animation-timeline',
+                                ],
+                            ],
+                            'placeholder' => 'none',
+                            'add' => true,
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                        $controls['_atAnimationRangeStart'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Range Start' ),
+                            'type'     => 'select',
+                            'options'  => [
+                                'none' => 'normal',
+                                'cover' => 'cover',
+                                'contain' => 'contain',
+                                'entry' => 'entry',
+                                'exit' => 'exit',
+                                'entry-crossing' => 'entry-crossing',
+                                'exit-crossing' => 'exit-crossing'
+                            ],
+                            'css'   => [
+                                [
+                                    'property' => 'animation-range-start',
+                                ],
+                            ],
+                            'placeholder' => 'normal',
+                            'add' => true,
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                        $controls['_atAnimationRangeEnd'] = [
+                            'tab'     => 'style',
+                            'group'    => '_animation',
+                            'label'    => esc_html__( 'Animation Range End' ),
+                            'type'     => 'select',
+                            'options'  => [
+                                'none' => 'normal',
+                                'cover' => 'cover',
+                                'contain' => 'contain',
+                                'entry' => 'entry',
+                                'exit' => 'exit',
+                                'entry-crossing' => 'entry-crossing',
+                                'exit-crossing' => 'exit-crossing'
+                            ],
+                            'css'   => [
+                                [
+                                    'property' => 'animation-range-end',
+                                ],
+                            ],
+                            'placeholder' => 'normal',
+                            'add' => true,
+                            'inline'   => true,
+                            'fullAccess' => true,
+                        ];
+                    
                     }
                     
                     return $controls;

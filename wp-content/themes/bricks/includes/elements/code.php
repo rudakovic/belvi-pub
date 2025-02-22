@@ -26,6 +26,58 @@ class Element_Code extends Element {
 	}
 
 	public function set_controls() {
+		$user_can_execute_code = Capabilities::current_user_can_execute_code();
+		if ( $user_can_execute_code ) {
+			$this->controls['executeCode'] = [
+				'label' => esc_html__( 'Execute code', 'bricks' ),
+				'type'  => 'checkbox',
+			];
+
+			// @since 1.9.8
+			$this->controls['parseDynamicData'] = [
+				'label'    => esc_html__( 'Parse dynamic data', 'bricks' ),
+				'type'     => 'checkbox',
+				'required' => [ 'executeCode', '!=', '' ],
+			];
+
+			$this->controls['supressPhpErrors'] = [
+				'label'    => esc_html__( 'Suppress PHP errors', 'bricks' ),
+				'type'     => 'checkbox',
+				'desc'     => esc_html__( 'Add "brx_code_errors" as an URL parameter to show PHP errors if needed.', 'bricks' ),
+				'required' => [ 'executeCode', '!=', '' ],
+			];
+
+			$this->controls['noRoot'] = [
+				'label'    => esc_html__( 'Render without wrapper', 'bricks' ),
+				'type'     => 'checkbox',
+				'desc'     => esc_html__( 'Render on the front-end without the div wrapper.', 'bricks' ),
+				'required' => [ 'executeCode', '!=', '' ],
+			];
+
+			$this->controls['noRootInfo'] = [
+				'type'     => 'info',
+				'content'  => esc_html__( 'When rendering without wrapper your settings under the style tab won\'t have any effect.', 'bricks' ),
+				'required' => [ 'noRoot', '=', true ],
+			];
+		}
+
+		// Code execution not allowed
+		else {
+			$this->controls['infoExecuteCodeOff'] = [
+				'content' => esc_html__( 'Code execution not allowed.', 'bricks' ) . ' ' . esc_html__( 'You can manage code execution permissions under: Bricks > Settings > Builder Access > Code Execution', 'bricks' ),
+				'type'    => 'info',
+			];
+		}
+
+		if ( $user_can_execute_code ) {
+			$this->controls['infoExecuteCode'] = [
+				'content'  => esc_html__( 'The executed code will run on your site! Only add code that you consider safe.', 'bricks' ),
+				'type'     => 'info',
+				'required' => [ 'executeCode', '!=', '' ],
+			];
+		}
+
+		// Code (PHP & HTML, CSS, JavaScript)
 		$css_logo        = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16" viewBox="0 0 124 141.53" fill="none" ><path d="M10.383 126.892L0 0l124 .255-10.979 126.637-50.553 14.638z" fill="#1b73ba"/><path d="M62.468 129.275V12.085l51.064.17-9.106 104.85z" fill="#1c88c7"/><path d="M100.851 27.064H22.298l2.128 15.318h37.276l-36.68 15.745 2.127 14.808h54.043l-1.958 20.68-18.298 3.575-16.595-4.255-1.277-11.745H27.83l2.042 24.426 32.681 9.106 31.32-9.957 4-47.745H64.765l36.085-14.978z" fill="#fff"/></svg>';
 		$javascript_logo = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16" viewBox="0 0 1052 1052"><path fill="#f0db4f" d="M0 0h1052v1052H0z"/><path d="M965.9 801.1c-7.7-48-39-88.3-131.7-125.9-32.2-14.8-68.1-25.399-78.8-49.8-3.8-14.2-4.3-22.2-1.9-30.8 6.9-27.9 40.2-36.6 66.6-28.6 17 5.7 33.1 18.801 42.8 39.7 45.4-29.399 45.3-29.2 77-49.399-11.6-18-17.8-26.301-25.4-34-27.3-30.5-64.5-46.2-124-45-10.3 1.3-20.699 2.699-31 4-29.699 7.5-58 23.1-74.6 44-49.8 56.5-35.6 155.399 25 196.1 59.7 44.8 147.4 55 158.6 96.9 10.9 51.3-37.699 67.899-86 62-35.6-7.4-55.399-25.5-76.8-58.4-39.399 22.8-39.399 22.8-79.899 46.1 9.6 21 19.699 30.5 35.8 48.7 76.2 77.3 266.899 73.5 301.1-43.5 1.399-4.001 10.6-30.801 3.199-72.101zm-394-317.6h-98.4c0 85-.399 169.4-.399 254.4 0 54.1 2.8 103.7-6 118.9-14.4 29.899-51.7 26.2-68.7 20.399-17.3-8.5-26.1-20.6-36.3-37.699-2.8-4.9-4.9-8.7-5.601-9-26.699 16.3-53.3 32.699-80 49 13.301 27.3 32.9 51 58 66.399 37.5 22.5 87.9 29.4 140.601 17.3 34.3-10 63.899-30.699 79.399-62.199 22.4-41.3 17.6-91.3 17.4-146.6.5-90.2 0-180.4 0-270.9z" fill="#323330"/></svg>';
 		$php_logo        = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="16" viewBox="0 0 256 134"  preserveAspectRatio="xMinYMin meet"><g fill-rule="evenodd"><ellipse fill="#8993BE" cx="128" cy="66.63" rx="128" ry="66.63"/><path d="M35.945 106.082l14.028-71.014H82.41c14.027.877 21.041 7.89 21.041 20.165 0 21.041-16.657 33.315-31.562 32.438H56.11l-3.507 18.411H35.945zm23.671-31.561L64 48.219h11.397c6.137 0 10.52 2.63 10.52 7.89-.876 14.905-7.89 17.535-15.78 18.412h-10.52zM100.192 87.671l14.027-71.013h16.658l-3.507 18.41h15.78c14.028.877 19.288 7.89 17.535 16.658l-6.137 35.945h-17.534l6.137-32.438c.876-4.384.876-7.014-5.26-7.014H124.74l-7.89 39.452h-16.658zM153.425 106.082l14.027-71.014h32.438c14.028.877 21.042 7.89 21.042 20.165 0 21.041-16.658 33.315-31.562 32.438h-15.781l-3.507 18.411h-16.657zm23.67-31.561l4.384-26.302h11.398c6.137 0 10.52 2.63 10.52 7.89-.876 14.905-7.89 17.535-15.78 18.412h-10.521z" fill="#232531"/></g></svg>';
@@ -92,55 +144,6 @@ class Element_Code extends Element {
 			'placeholder' => esc_html__( 'None', 'bricks' ),
 			'required'    => [ 'executeCode', '=', false ],
 		];
-
-		$user_can_execute_code = Capabilities::current_user_can_execute_code();
-		if ( $user_can_execute_code ) {
-			$this->controls['infoExecuteCode'] = [
-				'content'  => esc_html__( 'Important: The code above will run on your site! Only add code that you consider safe. Especially when executing PHP & JS code.', 'bricks' ),
-				'type'     => 'info',
-				'required' => [ 'executeCode', '!=', '' ],
-			];
-
-			$this->controls['executeCode'] = [
-				'label' => esc_html__( 'Execute code', 'bricks' ),
-				'type'  => 'checkbox',
-			];
-
-			// @since 1.9.8
-			$this->controls['parseDynamicData'] = [
-				'label'    => esc_html__( 'Parse dynamic data', 'bricks' ),
-				'type'     => 'checkbox',
-				'required' => [ 'executeCode', '!=', '' ],
-			];
-
-			$this->controls['supressPhpErrors'] = [
-				'label'    => esc_html__( 'Suppress PHP errors', 'bricks' ),
-				'type'     => 'checkbox',
-				'desc'     => esc_html__( 'Add "brx_code_errors" as an URL parameter to show PHP errors if needed.', 'bricks' ),
-				'required' => [ 'executeCode', '!=', '' ],
-			];
-
-			$this->controls['noRoot'] = [
-				'label'    => esc_html__( 'Render without wrapper', 'bricks' ),
-				'type'     => 'checkbox',
-				'desc'     => esc_html__( 'Render on the front-end without the div wrapper.', 'bricks' ),
-				'required' => [ 'executeCode', '!=', '' ],
-			];
-
-			$this->controls['noRootInfo'] = [
-				'type'     => 'info',
-				'content'  => esc_html__( 'When rendering without wrapper your settings under the style tab won\'t have any effect.', 'bricks' ),
-				'required' => [ 'noRoot', '=', true ],
-			];
-		}
-
-		// Code execution not allowed
-		else {
-			$this->controls['infoExecuteCodeOff'] = [
-				'content' => esc_html__( 'Code execution not allowed.', 'bricks' ) . ' ' . esc_html__( 'You can manage code execution permissions under: Bricks > Settings > Builder Access > Code Execution', 'bricks' ),
-				'type'    => 'info',
-			];
-		}
 	}
 
 	public function render() {

@@ -196,7 +196,7 @@ class Advanced_Themer_Darkmode_Button extends \Bricks\Element {
         'css' => [
           [
             'property' => 'background',
-            'selector' => '.brxc-toggle-slot',
+            'selector' => '.brxc-toggle-checkbox ~ label .brxc-toggle-slot',
           ],
         ],
         'inline' => true,
@@ -263,7 +263,7 @@ class Advanced_Themer_Darkmode_Button extends \Bricks\Element {
         'css' => [
           [
             'property' => 'background',
-            'selector' => '.brxc-toggle-slot',
+            'selector' => '.brxc-toggle-checkbox:checked ~ label .brxc-toggle-slot',
           ],
         ],
         'inline' => true,

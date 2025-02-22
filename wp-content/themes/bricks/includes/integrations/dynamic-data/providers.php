@@ -270,6 +270,11 @@ class Providers {
 					$value = false;
 				}
 
+				// Value is null: Set value to false to avoid error (@since 1.12)
+				if ( is_null( $value ) ) {
+					$value = false;
+				}
+
 				// NOTE: Undocumented (only enable if really needed)
 				$echo_everywhere = apply_filters( 'bricks/code/echo_everywhere', false );
 				if ( $value && strpos( $value, '{echo:' ) !== false ) {
@@ -349,8 +354,11 @@ class Providers {
 	 * @since 1.10
 	 */
 	public function handle_fallback( $value, $tag, $post_id, $filters, $context ) {
+		// STEP: Check if the value is empty based on value type (#86c15qkw6)
+		$is_empty_value = is_string( $value ) && $value === '' || is_array( $value ) && empty( $value ) || is_null( $value );
+
 		// STEP: Check for fallback argument
-		if ( empty( $value ) && isset( $filters['fallback'] ) ) {
+		if ( $is_empty_value && isset( $filters['fallback'] ) ) {
 			// Remove the single quotes and handle escaped characters
 			$fallback = stripslashes( $filters['fallback'] );
 
@@ -362,7 +370,7 @@ class Providers {
 		}
 
 		// STEP: Check for fallback-image arugment
-		if ( empty( $value ) && isset( $filters['fallback-image'] ) ) {
+		if ( $is_empty_value && isset( $filters['fallback-image'] ) ) {
 			// Remove the single quotes and handle escaped characters
 			$fallback_image = stripslashes( $filters['fallback-image'] );
 
@@ -450,12 +458,34 @@ class Providers {
 			$post = get_post();
 		}
 
+		// Set the correct post when previewing (@since 1.12; #86bw6re4w)
+		if ( \Bricks\Helpers::is_bricks_preview() && ! \Bricks\Query::is_looping() && isset( \Bricks\Database::$page_data['preview_or_post_id'] ) ) {
+			$post = get_post( \Bricks\Database::$page_data['preview_or_post_id'] );
+		}
+
 		return apply_filters( 'bricks/dynamic_data/render_content', $content, $post, $context );
 	}
 
 	public static function get_dynamic_tags_list() {
 		// NOTE: Undocumented. This allows the dynamic data providers to add their tags to the builder
 		$tags = apply_filters( 'bricks/dynamic_tags_list', [] );
+
+		return $tags;
+	}
+
+	/**
+	 * Get a list of all supported dynamic data tags - for builder
+	 *
+	 * @since 1.12
+	 */
+	public static function get_query_supported_tags_list() {
+		$tags = [];
+
+		foreach ( self::$providers as $provider ) {
+			if ( method_exists( $provider, 'get_query_supported_tags' ) ) {
+				$tags = array_merge( $tags, $provider->get_query_supported_tags() );
+			}
+		}
 
 		return $tags;
 	}

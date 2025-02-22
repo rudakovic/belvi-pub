@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
  *
  * @since 1.0
  */
-define( 'BRICKS_VERSION', '1.11.1.1' );
+define( 'BRICKS_VERSION', '1.12.1' );
 define( 'BRICKS_NAME', 'Bricks' );
 define( 'BRICKS_TEMP_DIR', 'bricks-temp' ); // Template import/export (JSON & ZIP)
 define( 'BRICKS_TEMPLATE_SCREENSHOTS_DIR', 'bricks/template-screenshots' ); // Template screenshots (@since 1.10)
@@ -26,6 +26,7 @@ define( 'BRICKS_DB_STRUCTURE_WIDTH', 'bricks_structure_width' ); // @since 1.10.
 define( 'BRICKS_DB_BUILDER_SCALE_OFF', 'bricks_builder_scale_off' );
 define( 'BRICKS_DB_BUILDER_WIDTH_LOCKED', 'bricks_builder_width_locked' );
 
+define( 'BRICKS_DB_COMPONENTS', 'bricks_components' );
 define( 'BRICKS_DB_COLOR_PALETTE', 'bricks_color_palette' );
 define( 'BRICKS_DB_BREAKPOINTS', 'bricks_breakpoints' );
 define( 'BRICKS_DB_GLOBAL_SETTINGS', 'bricks_global_settings' );
@@ -105,6 +106,11 @@ if ( ! defined( 'BRICKS_MAX_REVISIONS_TO_KEEP' ) ) {
  *
  * @since 1.0
  */
+
+// Global data: Components (@since 1.12)
+if ( ! defined( 'BRICKS_MULTISITE_USE_MAIN_SITE_COMPONENTS' ) ) {
+	define( 'BRICKS_MULTISITE_USE_MAIN_SITE_COMPONENTS', false );
+}
 
 // Global data: Color palette
 if ( ! defined( 'BRICKS_MULTISITE_USE_MAIN_SITE_COLOR_PALETTE' ) ) {

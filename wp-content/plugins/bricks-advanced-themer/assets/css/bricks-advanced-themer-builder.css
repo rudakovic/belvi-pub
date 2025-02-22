@@ -2594,7 +2594,7 @@ Main AT Menu
  }
  #brxcCustomComponentsElements {
    display: grid;
-   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
    gap: 20px;
 }
 .brxc-custom-components__item {
@@ -4303,6 +4303,26 @@ Style Overview
    gap: 10px;
    background-color: var(--builder-bg-3);
    margin-bottom: 4px;
+   position: relative;
+   overflow: hidden;
+}
+#brxcStyleOverviewCanvas #brxcStyleOverviewPreview li[data-has-style="true"]::before{
+   content: '';
+   position: absolute;
+   bottom: 0;
+   top: 0;
+   right: 0;
+   width: 3px;
+   background-color: var(--bricks-color-secondary);
+}
+#brxcStyleOverviewCanvas #brxcStyleOverviewPreview li[data-has-class="true"]::after{
+   content: '';
+   position: absolute;
+   bottom: 0;
+   top: 0;
+   left: 0;
+   width: 3px;
+   background-color: var(--builder-color-highlight);
 }
 #brxcStyleOverviewCanvas #brxcStyleOverviewPreview li:hover, #brxcStyleOverviewCanvas #brxcStyleOverviewPreview li.active{
    color: var(--builder-color-accent);
@@ -5233,6 +5253,7 @@ Structure Helper
    opacity: .3;
    cursor: pointer;
    white-space: nowrap;
+   flex-shrink: 0;
  }
  #brxcStructureHelper #structurPanelList .brxc-structure-list__wrapper.collapsed li{
    display: none
@@ -6180,13 +6201,28 @@ Class Converter
    color: var(--builder-color-accent);
    width: 100%;
 }
-
+#brxcClassConvertCanvas li span.brxc-class-exists{
+   width: 6px;
+   height: 6px;
+   align-self: center;
+   margin-right: 5px;
+   margin-left: auto;
+   border-radius: 50%;
+}
+#brxcClassConvertCanvas li span.brxc-class-exists[data-exists="false"]{
+   background-color: var(--bricks-text-success);
+}
+#brxcClassConvertCanvas li span.brxc-class-exists[data-exists="duplicate"] {
+   background-color: var(--bricks-text-warning);
+}
+#brxcClassConvertCanvas li span.brxc-class-exists[data-exists="true"] {
+   background-color: var(--bricks-text-danger);
+}
 #brxcClassConvertCanvas li button{
    all: unset;
    cursor: pointer;
    position: relative;
    padding: 0 4px;
-   margin-left: auto;
 }
 #brxcClassConvertCanvas li button:focus {
    outline: 1px dotted;
@@ -8565,7 +8601,7 @@ Focus Mode
    display: flex;
    align-items: center;
    justify-content: space-between;
-   width: 100%;
+   width: calc(100% - 10px);
    border-radius: var(--builder-border-radius);
    margin-bottom: 20px;
    background-color: var(--builder-bg-accent);
@@ -9064,20 +9100,20 @@ body[data-disable-styles="true"]  .disabled-style-icon{
  /*--------------------------------------
 Responsive Bar
  --------------------------------------*/
- body.responsive-helper #bricks-toolbar li.breakpoint.active{
+ body[data-responsive-helper="true"] #bricks-toolbar li.breakpoint.active{
    cursor: pointer;
    background-color: var(--builder-bg-accent);
    color: var(--builder-color-accent);
  }
- body.responsive-helper #bricks-toolbar li.breakpoint.active[data-click="true"]{
+ body[data-responsive-helper="true"] #bricks-toolbar li.breakpoint.active[data-click="true"]{
    cursor: pointer;
    background-color: var(--builder-bg-3);
    color: currentcolor;
  }
- #bricks-toolbar li.responsive-helper {
+ #bricks-toolbar li.responsive-slider {
    width: 20px !important;
 }
-#bricks-toolbar li.responsive-helper.active {
+#bricks-toolbar li.responsive-slider.active {
    cursor: pointer;
    background-color: var(--builder-bg-accent);
    color: var(--builder-color-accent);
@@ -9092,6 +9128,11 @@ Responsive Bar
 }
 #brxcResponsiveBar.active *{
    display: flex;
+}
+
+
+#brxcResponsiveBar.active + #bricks-builder-iframe-wrapper {
+      height: calc(100% - 66px);
 }
 
 .brxc-range-input-wrapper{
@@ -9237,6 +9278,10 @@ Search Structure
    padding-left: 0 !important;
 }
 #bricks-structure[data-is-searching="true"] .element[data-search-active="true"] > .structure-item{
+   display: flex !important;
+}
+
+#bricks-structure[data-is-searching="true"] .bricks-structure-list:has(.element[data-search-active="true"]){
    display: flex !important;
 }
  /*--------------------------------------

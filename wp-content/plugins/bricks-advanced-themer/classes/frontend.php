@@ -10,7 +10,7 @@ use ScssPhp\ScssPhp\Compiler;
 class AT__Frontend{
     public static function generate_css_for_global_page_transitions() {
         global $brxc_acf_fields;
-        
+        //var_dump(AT__Helpers::is_value($brxc_acf_fields, 'activate_global_page_transition'));
         if (!AT__Helpers::is_value($brxc_acf_fields, 'activate_global_page_transition') ) {
             return '';
         }
@@ -41,7 +41,7 @@ class AT__Frontend{
                     if($field_suffix === 'keyframes'){
                         $value = wp_strip_all_tags($value);
                         $custom_css .= "@keyframes global-page-transition-{$key} {$value}";
-                        $custom_css_part .= "{$css_property}:global-page-transation-{$key};";
+                        $custom_css_part .= "{$css_property}:global-page-transition-{$key};";
                     } else {
                         $unit = ($field_suffix === 'duration' || $field_suffix === 'delay') ? 'ms' : '';
                         if($value !== 'default') {
@@ -210,8 +210,13 @@ class AT__Frontend{
 
         wp_enqueue_style('bricks-advanced-themer');
 
+        $custom_css = '';
+
+        // Global Page Transition
+        $custom_css .= self::generate_css_for_global_page_transitions();
+
         // Default Variables
-        $custom_css = self::generate_default_css_variables();
+        $custom_css .= self::generate_default_css_variables();
 
         if( AT__Helpers::is_grids_tab_activated() ) {
             
@@ -882,7 +887,7 @@ class AT__Frontend{
         }
     }
 
-    private static function page_transition_apply_element_settings($template_id, $metas, $page_transition_type) {
+    private static function page_transition_apply_element_settings($template_id, $metas) {
         $global_css = '';
         $types = [
             "old" => "Old",
@@ -899,7 +904,10 @@ class AT__Frontend{
                 foreach ($elements as $element) {
                     $settings = $element['settings'] ?? [];
     
-                    if (($settings['pageTransitionType'] ?? '') === "animated_element" && !empty($settings['pageTransitionName'])) {
+                    if (!empty($settings['pageTransitionName'])) {
+
+                        wp_enqueue_style('brxc-page-transition');
+
                         foreach ($types as $key => $value) {
                             $animation = '';
                             $keyframe = '';
@@ -925,20 +933,14 @@ class AT__Frontend{
                     }
     
                     // Set root attributes with a single filter application
-                    add_filter('bricks/element/set_root_attributes', function ($attributes, $element_data) use ($page_transition_type, $element, $settings) {
+                    add_filter('bricks/element/set_root_attributes', function ($attributes, $element_data) use ($element, $settings) {
                         if ($element_data->id !== $element['id']) return $attributes;
     
-                        if (in_array($page_transition_type, ["origin", "both"]) && ($settings['pageTransitionType'] ?? '') === "wrapper") {
-                            $attributes['data-page-transition-wrapper'] = 'true';
-                        }
     
-                        if (($settings['pageTransitionType'] ?? '') === "animated_element" && !empty($settings['pageTransitionName'])) {
+                        if (!empty($settings['pageTransitionName'])) {
                             $name = $settings['pageTransitionName'];
-                            if (in_array($page_transition_type, ["origin", "both"]) ) {
-                                $attributes['data-page-transition-name'] = $name;
-                            } elseif (in_array($page_transition_type, ["target", "both"])) {
-                                $attributes['style'] = isset($attributes['style']) ? $attributes['style'] . "view-transition-name:{$name};" : "view-transition-name:{$name};";
-                            }
+                            $attributes['style'] = isset($attributes['style']) ? $attributes['style'] . "view-transition-name:{$name};" : "view-transition-name:{$name};";
+                            
                         }
                         return $attributes;
                     }, 10, 2);
@@ -972,24 +974,9 @@ class AT__Frontend{
         $page_settings = get_post_meta($content_post_id, "_bricks_page_settings");
   
         // Check if page transition is activated
-        if (empty($page_settings[0]["activatePageTransition"])) {
-            return $active_templates;
+        if (!empty($page_settings[0]["activatePageTransition"])) {
+            wp_enqueue_style('brxc-page-transition');
         }
-    
-        // Enqueue transition assets
-        wp_enqueue_style('brxc-page-transition');
-    
-        // Apply data attribute on body based on transition type
-        $page_transition_type = $page_settings[0]["pageTransitionElements"] ?? false;
-        if(in_array($page_transition_type, ["origin", "both"]) ){
-            wp_enqueue_script('brxc-page-transition');
-        }
-        add_filter('bricks/body/attributes', function($attributes) use ($page_transition_type) {
-            if($page_transition_type){
-                $attributes['data-page-transition-type'] = $page_transition_type;
-            }
-            return $attributes;
-        });
 
         // root css
 
@@ -1028,7 +1015,7 @@ class AT__Frontend{
         $unique_templates = array_unique(array_filter($active_templates, 'is_numeric'));
         foreach ($unique_templates as $template_id) {
             if ($template_id > 0) {
-                self::page_transition_apply_element_settings($template_id, $metas, $page_transition_type);
+                self::page_transition_apply_element_settings($template_id, $metas);
             }
         }
     

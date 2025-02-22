@@ -4,19 +4,8 @@ namespace Bricks;
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
 class Database {
-	public static $posts_per_page   = 0;
-	public static $active_templates = [
-		'header'              => 0,
-		'footer'              => 0,
-		'content'             => 0,
-		'section'             => 0, // Use in "Template" element
-		'archive'             => 0,
-		'error'               => 0,
-		'search'              => 0,
-		'password_protection' => 0, // @since 1.11.1
-		'popup'               => [], // Array with popup template ids
-	];
-
+	public static $posts_per_page         = 0;
+	public static $active_templates       = [];
 	public static $default_template_types = [
 		'header',
 		'footer',
@@ -56,6 +45,11 @@ class Database {
 	public static $adobe_fonts     = [];
 
 	public function __construct() {
+		// Initialize active templates through helper function (@since 1.12)
+		if ( is_array( self::$active_templates ) && empty( self::$active_templates ) ) {
+			self::init_active_templates();
+		}
+
 		self::get_global_data();
 
 		add_action( 'pre_get_posts', [ $this, 'set_main_archive_query' ] );
@@ -75,6 +69,25 @@ class Database {
 		add_action( 'update_option_' . BRICKS_DB_GLOBAL_CLASSES, [ $this, 'update_option_bricks_global_classes' ], 10, 3 );
 
 		add_filter( 'wp_prepare_themes_for_js', [ $this, 'wp_prepare_themes_for_js' ] );
+	}
+
+	/**
+	 * Initialize active templates
+	 *
+	 * @since 1.12
+	 */
+	public static function init_active_templates() {
+		self::$active_templates = [
+			'header'              => 0,
+			'footer'              => 0,
+			'content'             => 0,
+			'archive'             => 0,
+			'error'               => 0,
+			'search'              => 0,
+			'section'             => 0, // Use in "Template"
+			'password_protection' => 0, // @since 1.11.1
+			'popup'               => [], // Array with popup template IDs
+		];
 	}
 
 	/**
@@ -340,23 +353,13 @@ class Database {
 		}
 
 		/**
-		 * Reset active templates
+		 * Re-init active templates
 		 *
 		 * @see #86bw4pmd0
 		 * @since 1.9.2
 		 */
 		if ( $set_active_templates ) {
-			self::$active_templates = [
-				'header'              => 0,
-				'footer'              => 0,
-				'content'             => 0,
-				'section'             => 0,
-				'archive'             => 0,
-				'error'               => 0,
-				'search'              => 0,
-				'password_protection' => 0,
-				'popup'               => [],
-			];
+			self::init_active_templates();
 		}
 	}
 
@@ -561,11 +564,35 @@ class Database {
 	 * @param array  $excluded_ids Array of template IDs to exclude from consideration. (@since 1.11.1)
 	 */
 	public static function find_template_id( $template_ids, $template_part, $content_type, $post_id, $preview_type, $excluded_ids = [] ) {
-		$found_templates = []; // Hold all the found template ids for the context, with score 0.low XX.high [score=>template id]
-
+		$found_templates           = []; // Hold all the found template ids for the context, with score 0.low XX.high [score=>template id]
 		$disable_default_templates = self::get_setting( 'defaultTemplatesDisabled', false );
 
-		$post_type = get_post_type( $post_id );
+		/**
+		 * STEP: Check for password protection templates first to ensure highest priority
+		 * Password protection templates should override any other matching template
+		 *
+		 * @since 1.12
+		 */
+		if ( ! empty( $template_ids['body'] ) ) {
+			foreach ( $template_ids['body'] as $template_id ) {
+				// Skip excluded template IDs
+				if ( in_array( $template_id, $excluded_ids, true ) ) {
+					continue;
+				}
+
+				// Check if this is a password protection template
+				if ( Templates::get_template_type( $template_id ) === 'password_protection' ) {
+					$template_conditions = Helpers::get_template_setting( 'templateConditions', $template_id );
+
+					// Return immediately if conditions match
+					if ( ! empty( self::screen_conditions( [], $template_id, $template_conditions, $post_id, $preview_type ) ) ) {
+						return $template_id;
+					}
+				}
+			}
+		}
+
+		// STEP: Continue with regular template evaluation if no password protection template matched
 
 		// Loop for all the templates and template conditions and assign scores
 		// 0 - Default (no condition set)
@@ -774,7 +801,7 @@ class Database {
 
 		$template_settings = Helpers::get_template_settings( $object_id );
 
-		// Check if this is a password protection template (@since 1.11.1)
+		// Check if this is a password protection template
 		$pp_template_location = $template_settings['passwordProtectionSource'] ?? 'both';
 		$is_pp_template       = $pp_template_location !== 'wordpress' ? Templates::get_template_type( $object_id ) === 'password_protection' : false;
 
@@ -982,7 +1009,7 @@ class Database {
 				$scores[] = 2;
 			}
 
-			// Is password protection template: For each valid score increase priority by 100 (@since 1.11.1)
+			// Is password protection template: For each valid score increase priority by 100
 			if ( $is_pp_template ) {
 				$scores = array_map(
 					function( $score ) {
@@ -1086,14 +1113,12 @@ class Database {
 			$content_type !== 'header' &&
 			$content_type !== 'footer'
 		) {
-			$data = get_post_meta( get_the_ID(), BRICKS_DB_PAGE_CONTENT, true );
-
-			return $data;
+			$elements = get_post_meta( get_the_ID(), BRICKS_DB_PAGE_CONTENT, true );
+		} else {
+			$elements = get_post_meta( $template_id, $meta_key, true );
 		}
 
-		$data = get_post_meta( $template_id, $meta_key, true );
-
-		return $data;
+		return $elements;
 	}
 
 	/**
@@ -1154,6 +1179,13 @@ class Database {
 	 * @since 1.0
 	 */
 	public static function get_global_data() {
+		// Components
+		if ( is_multisite() && BRICKS_MULTISITE_USE_MAIN_SITE_COMPONENTS ) {
+			self::$global_data['components'] = get_blog_option( get_main_site_id(), BRICKS_DB_COMPONENTS, [] );
+		} else {
+			self::$global_data['components'] = get_option( BRICKS_DB_COMPONENTS, [] );
+		}
+
 		// Color palette
 		if ( is_multisite() && BRICKS_MULTISITE_USE_MAIN_SITE_COLOR_PALETTE ) {
 			self::$global_data['colorPalette'] = get_blog_option( get_main_site_id(), BRICKS_DB_COLOR_PALETTE, [] );

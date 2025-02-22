@@ -244,7 +244,7 @@ class Woocommerce_Products extends Custom_Render_Element {
 			$settings['query']['woo_disable_query_merge'] = true;
 		}
 
-		// Need to indicate the name for WooCommerce Product and it will be used in WooCommerce_Helpers::filters_query_args() (@since 1.x)
+		// Need to indicate the name for WooCommerce Product and it will be used in WooCommerce_Helpers::filters_query_args() (@since 1.12)
 		$query_object = new Query(
 			[
 				'id'       => $this->id,

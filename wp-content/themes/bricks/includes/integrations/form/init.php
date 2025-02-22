@@ -938,6 +938,11 @@ class Init {
 				continue;
 			}
 
+			// Skip if field type is 'html' or 'hidden' (@since 1.12)
+			if ( in_array( $form_settings_field['type'], [ 'html', 'hidden' ], true ) ) {
+				continue;
+			}
+
 			$error = false;
 
 			// File field: Check if file is uploaded

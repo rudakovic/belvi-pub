@@ -653,8 +653,9 @@ class Element_List extends Element {
 
 	public function render() {
 		$settings = $this->settings;
+		$items    = $settings['items'] ?? [];
 
-		if ( empty( $settings['items'] ) ) {
+		if ( empty( $items ) ) {
 			return $this->render_element_placeholder(
 				[
 					'title' => esc_html__( 'No list items defined.', 'bricks' ),
@@ -666,7 +667,7 @@ class Element_List extends Element {
 
 		$output = "<ul {$this->render_attributes( '_root' )}>";
 
-		foreach ( $settings['items'] as $index => $item ) {
+		foreach ( $items as $index => $item ) {
 			$title       = isset( $item['title'] ) ? $this->render_dynamic_data( $item['title'] ) : false;
 			$meta        = isset( $item['meta'] ) ? $this->render_dynamic_data( $item['meta'] ) : false;
 			$description = isset( $item['description'] ) ? $this->render_dynamic_data( $item['description'] ) : false;

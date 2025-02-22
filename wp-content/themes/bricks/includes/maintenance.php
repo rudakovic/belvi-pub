@@ -103,18 +103,8 @@ class Maintenance {
 		// Use maintenance template. Set the template ID
 		self::$template_id = $maintenance_template_id;
 
-		// Reset the active templates
-		Database::$active_templates = [
-			'header'              => 0,
-			'footer'              => 0,
-			'content'             => 0,
-			'section'             => 0,
-			'archive'             => 0,
-			'error'               => 0,
-			'search'              => 0,
-			'password_protection' => 0,
-			'popup'               => [],
-		];
+		// Re-init the active templates
+		Database::init_active_templates();
 
 		// NOTE: Set the active templates
 		add_filter( 'bricks/active_templates', [ $this, 'set_user_maintenance_template' ], 9999, 3 );

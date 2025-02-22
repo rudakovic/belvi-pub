@@ -18,7 +18,7 @@ const BRICKS_AREAS_INST = 'true';
  *
  * @var string
  */
-const BRICKS_ADVANCED_THEMER_VERSION = '3.0.3';
+const BRICKS_ADVANCED_THEMER_VERSION = '3.0.5';
 
 /**
  * Plugin Path

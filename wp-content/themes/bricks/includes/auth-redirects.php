@@ -97,24 +97,40 @@ class Auth_Redirects {
 		// STEP: Check WordPress authentication URL (@since 1.11)
 		$wp_auth_url_behavior = Database::get_setting( 'wp_auth_url_behavior', 'default' );
 
-		if ( $current_url_path === $wp_login_url_path ) { // Login page & actions
+		// Login page & actions
+		if ( $current_url_path === $wp_login_url_path ) {
 			switch ( $action ) {
 				case null:
+				case 'login':
 					$this->handle_login_redirect( $wp_auth_url_behavior );
 					break;
+
 				case 'lostpassword':
 					$this->handle_lost_password_redirect( $wp_auth_url_behavior );
 					break;
+
 				case 'register':
 					$this->handle_registration_redirect( $wp_auth_url_behavior );
 					break;
+
 				case 'rp': // Reset password
 					$this->handle_reset_password_redirect( $wp_auth_url_behavior );
 					break;
+
+				default:
+					// Handle unrecognized actions (@since 1.12)
+					$this->handle_custom_behavior( $wp_auth_url_behavior );
+					break;
 			}
-		} elseif ( $current_url_path === $wp_registration_url_path ) { // Registration page fallback
+		}
+
+		// Registration page fallback
+		elseif ( $current_url_path === $wp_registration_url_path ) {
 			$this->handle_registration_redirect( $wp_auth_url_behavior );
-		} elseif ( $current_url_path === $wp_lost_password_url_path ) { // Lost password page fallback
+		}
+
+		// Lost password page fallback
+		elseif ( $current_url_path === $wp_lost_password_url_path ) {
 			$this->handle_lost_password_redirect( $wp_auth_url_behavior );
 		}
 	}
@@ -124,13 +140,14 @@ class Auth_Redirects {
 	 *
 	 * @since 1.11
 	 *
-	 * @param string $behavior The selected behavior: 404/home/custom
+	 * @param string $behavior The selected behavior: 404/home/custom.
 	 */
 	private function handle_custom_behavior( $behavior ) {
 		switch ( $behavior ) {
 			case '404':
 				global $wp_query;
 				$wp_query->set_404();
+				\Bricks\Database::set_active_templates();
 				status_header( 404 );
 				get_template_part( 404 );
 				exit;

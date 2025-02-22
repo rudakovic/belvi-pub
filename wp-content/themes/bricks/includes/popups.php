@@ -850,7 +850,18 @@ class Popups {
 
 		// Popup backdrop, if not disabled (@since 1.9.8)
 		if ( ! isset( Theme_Styles::$active_settings['popup']['popupDisableBackdrop'] ) && ! isset( $popup_template_settings['popupDisableBackdrop'] ) ) {
-			$html .= '<div class="brx-popup-backdrop"></div>';
+			if ( Query::is_looping() ) {
+				/**
+				 * Support dynamic style in Popup settings (looping popup)
+				 * This is for non-AJAX popup in loop. AJAX popup in loop is handled by frontend.js
+				 *
+				 * @since 1.12
+				 */
+				$unique_loop_index = Query::get_looping_unique_identifier();
+				$html             .= '<div class="brx-popup-backdrop" data-query-loop-index="' . $unique_loop_index . '"></div>';
+			} else {
+				$html .= '<div class="brx-popup-backdrop"></div>';
+			}
 		}
 
 		$html .= '</div>';

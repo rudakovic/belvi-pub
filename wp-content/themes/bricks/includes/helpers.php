@@ -65,22 +65,82 @@ class Helpers {
 	 * @param string $taxonomy Taxonomy name.
 	 * @param string $post_type Post type name.
 	 * @param string $include_all Includes meta terms like "All terms (taxonomy name)".
-	 *
+	 * @param string $search Search term. (@since 1.12)
 	 * @since 1.0
 	 */
-	public static function get_terms_options( $taxonomy = null, $post_type = null, $include_all = false ) {
-		$term_args = [ 'hide_empty' => false ];
+	public static function get_terms_options( $taxonomy = null, $post_type = null, $include_all = false, $search = '' ) {
+		// Always limit to 100 terms for performance reasons (@since 1.12)
+		$term_args = [
+			'hide_empty' => false,
+			'number'     => 100
+		];
 
 		if ( isset( $taxonomy ) ) {
 			$term_args['taxonomy'] = $taxonomy;
 		}
 
-		$cache_key = 'get_terms_options' . md5( 'taxonomy' . wp_json_encode( $taxonomy ) . 'post_type' . wp_json_encode( $post_type ) . 'include' . $include_all );
+		$search = trim( $search );
+		if ( ! empty( $search ) ) {
+			$term_args['search'] = $search;
+		}
+
+		$cache_key = 'get_terms_options' . md5( 'taxonomy' . wp_json_encode( $taxonomy ) . 'post_type' . wp_json_encode( $post_type ) . 'include' . $include_all . 'search' . $search );
 
 		$response = wp_cache_get( $cache_key, 'bricks' );
 
 		if ( $response !== false ) {
 			return $response;
+		}
+
+		/**
+		 * New include_all logic
+		 * Should not get from get_terms() since we are searching by search term. We can use this to exclude non-registered taxonomies terms too.
+		 *
+		 * @since 1.12
+		 */
+		$all_taxonomies = get_taxonomies( [], 'objects' );
+		// We only need the labels and names
+		$all_taxonomies = array_map(
+			function( $tax ) {
+				return [
+					'name'  => $tax->name,
+					'label' => $tax->label
+				];
+			},
+			$all_taxonomies
+		);
+
+		$valid_tax_slugs = array_column( $all_taxonomies, 'name' );
+
+		if ( ! isset( $taxonomy ) ) {
+			// (Undocumented) For large site with humongous amount of taxonomies, but don't want to increase Memory Limit
+			$enable_limit = apply_filters( 'bricks/get_terms_options/enable_limit', false );
+
+			if ( $enable_limit ) {
+				/**
+				 * Get the first 20 taxonomies if there are more than 20
+				 *
+				 * Gradually increase the limit based on the search term length and cap it to 250
+				 *
+				 * Potential issues:
+				 * If all terms with a very short slug, and the taxonomy is not in the first N taxonomies, can't get the expected term. No ideal solution for this yet.
+				 */
+				$limit         = 20;
+				$search_length = isset( $term_args['search'] ) ? strlen( $search ) : 0;
+
+				// if has search term, can increase the included taxonomies gradually (avoid memory exhaustion)
+				if ( $search_length >= 3 ) {
+					// If more than 3 characters, increase the limit
+					$limit = 100 + ( ( $search_length - 3 ) * 50 );
+				}
+
+				if ( count( $valid_tax_slugs ) > $limit ) {
+					$valid_tax_slugs = array_slice( $valid_tax_slugs, 0, $limit );
+				}
+			}
+
+			// Always set the taxonomy parameter
+			$term_args['taxonomy'] = $valid_tax_slugs;
 		}
 
 		$terms = get_terms( $term_args );
@@ -100,7 +160,7 @@ class Helpers {
 			}
 
 			// Skip term if term taxonomy is not a taxonomy of requested post type
-			if ( isset( $post_type ) ) {
+			if ( isset( $post_type ) && $post_type !== 'any' ) {
 				$post_type_taxonomies = get_object_taxonomies( $post_type );
 
 				if ( ! in_array( $term->taxonomy, $post_type_taxonomies ) ) {
@@ -108,28 +168,23 @@ class Helpers {
 				}
 			}
 
-			// Store taxonomy name and term ID as WP_Query tax_query needs both (name and term ID)
-			$taxonomy_object = get_taxonomy( $term->taxonomy );
-			$taxonomy_label  = '';
-
-			if ( gettype( $taxonomy_object ) === 'object' ) {
-				$taxonomy_label = ' (' . $taxonomy_object->labels->name . ')';
-			} else {
-				if ( $term->taxonomy === BRICKS_DB_TEMPLATE_TAX_TAG ) {
-					$taxonomy_label = ' (' . esc_html__( 'Template tag', 'bricks' ) . ')';
-				}
-
-				if ( $term->taxonomy === BRICKS_DB_TEMPLATE_TAX_BUNDLE ) {
-					$taxonomy_label = ' (' . esc_html__( 'Template bundle', 'bricks' ) . ')';
-				}
+			// Skip if the term is not a valid taxonomy (Maybe a custom taxonomy that is not registered after a plugin/theme deactivation)
+			if ( ! in_array( $term->taxonomy, $valid_tax_slugs, true ) ) {
+				continue;
 			}
 
-			$all_terms[ $term->taxonomy . '::all' ] = esc_html__( 'All terms', 'bricks' ) . $taxonomy_label;
+			// Store taxonomy name and term ID as WP_Query tax_query needs both (name and term ID)
+			$taxonomy_label = self::generate_taxonomy_label( $term->taxonomy );
 
-			$response[ $term->taxonomy . '::' . $term->term_id ] = $term->name . $taxonomy_label;
+			$response[ $term->taxonomy . '::' . $term->term_id ] = "{$term->name} ({$taxonomy_label})";
 		}
 
 		if ( $include_all ) {
+			// Build "All terms" option from all taxonomies
+			foreach ( $all_taxonomies as $taxonomy ) {
+				$all_terms[ $taxonomy['name'] . '::all' ] = esc_html__( 'All terms', 'bricks' ) . ' (' . $taxonomy['label'] . ')';
+			}
+
 			$response = array_merge( $all_terms, $response );
 		}
 
@@ -422,7 +477,6 @@ class Helpers {
 		return apply_filters( 'bricks/get_the_title', $title, $post_id );
 	}
 
-
 	/**
 	 * Get the queried object which could also be set if previewing a template
 	 *
@@ -500,8 +554,9 @@ class Helpers {
 		}
 
 		/**
-		 * Relevanssi compatibility - the modified excerpt is stored in the global post_excerpt field
-		 * Bricks will not trim the Relevanssi excerpt any further
+		 * Relevanssi compatibility (the modified excerpt is stored in the global post_excerpt field)
+		 *
+		 * Bricks will not trim the Relevanssi excerpt any further.
 		 *
 		 * @since 1.9.1
 		 */
@@ -518,7 +573,7 @@ class Helpers {
 
 			$text = get_the_content( '', false, $post );
 			$text = strip_shortcodes( $text );
-			$text = excerpt_remove_blocks( $text );
+			$text = function_exists( 'excerpt_remove_blocks' ) ? excerpt_remove_blocks( $text ) : $text; // Run function_exists for ClassicPress
 			$text = str_replace( ']]>', ']]&gt;', $text );
 		}
 
@@ -560,12 +615,23 @@ class Helpers {
 	 * @param string  $more
 	 * @param boolean $keep_html
 	 */
-	public static function trim_words( $text, $length, $more = null, $keep_html = false, $wpautop = true ) {
-		if ( empty( $text ) ) {
+	public static function trim_words( $text = '', $length = 15, $more = null, $keep_html = false, $wpautop = true ) {
+		if ( $text === '' ) {
 			return '';
 		}
 
 		$more = isset( $more ) ? $more : '&hellip;';
+
+		/**
+		 * Ensure length is an integer and not larger than PHP_INT_MAX or it will be converted to float
+		 *
+		 * @since 1.12
+		 */
+		$length = (int) $length;
+
+		if ( defined( 'PHP_INT_MAX' ) && $length >= PHP_INT_MAX ) {
+			$length = PHP_INT_MAX - 1;
+		}
 
 		/**
 		 * Strip all HTML tags (wp_trim_words)
@@ -722,6 +788,9 @@ class Helpers {
 			return false;
 		}
 
+		// Ensure the ID is a string as it could be 6 digit number (@since 1.12)
+		$element_id = (string) $element_id;
+
 		$output = [
 			'element'   => [], // The element we want to find
 			'elements'  => [], // The complete set of elements where the element is included
@@ -741,7 +810,7 @@ class Helpers {
 
 			if ( ! empty( $elements ) && is_array( $elements ) ) {
 				foreach ( $elements as $element ) {
-					if ( $element['id'] == $element_id ) {
+					if ( $element['id'] === $element_id ) {
 						$output = [
 							'element'   => $element,
 							'elements'  => $elements,
@@ -855,9 +924,12 @@ class Helpers {
 	}
 
 	/**
-	 * Get element settings (for use in AJAX functions such as form submit, pagination, etc.)
+	 * Get element settings
+	 *
+	 * For use in AJAX functions such as form submit, pagination, etc.
 	 *
 	 * @since 1.0
+	 * @since 1.12: Check for component instance settings
 	 */
 	public static function get_element_settings( $post_id = 0, $element_id = 0, $global_id = 0 ) {
 		if ( ! $element_id ) {
@@ -877,20 +949,166 @@ class Helpers {
 		$data    = self::get_element_data( $post_id, $element_id );
 		$element = $data['element'] ?? false;
 
-		// Return: No element found
+		// No element found
 		if ( ! $element ) {
-			return false;
+			// Component child: Check element in Frontend array (@since 1.12)
+			if ( isset( Frontend::$elements[ $element_id ] ) ) {
+				$element = Frontend::$elements[ $element_id ];
+			} else {
+				return false;
+			}
 		}
 
-		// Get global element settings
-		$global_settings = self::get_global_element( $element, 'settings' );
+		// Check: Component root (@since 1.12)
+		$component_instance_settings = ! empty( $element['cid'] ) ? self::get_component_instance( $element, 'settings' ) : false;
 
-		if ( is_array( $global_settings ) ) {
-			return $global_settings;
+		if ( $component_instance_settings ) {
+			return $component_instance_settings;
 		}
 
 		// Return: element settings
 		return $element['settings'] ?? '';
+	}
+
+	/**
+	 * Get component by 'cid'
+	 *
+	 * @param array $element
+	 *
+	 * @return boolean|array false if no component found, else return the component data.
+	 *
+	 * @since 1.12
+	 */
+	public static function get_component_by_cid( $component_id ) {
+		$components      = Database::$global_data['components'];
+		$component_index = array_search( $component_id, array_column( $components, 'id' ) );
+
+		return $components[ $component_index ] ?? false;
+	}
+
+	/**
+	 * Get component element by 'id'
+	 *
+	 * @param array $component_element_id
+	 *
+	 * @return boolean|array false if no component found, else return the component child element.
+	 *
+	 * @since 1.12
+	 */
+	public static function get_component_element_by_id( $component_element_id ) {
+		foreach ( Database::$global_data['components'] as $component ) {
+			if ( ! empty( $component['elements'] ) && is_array( $component['elements'] ) ) {
+				$component_child_index = array_search( $component_element_id, array_column( $component['elements'], 'id' ) );
+
+				// Return the component element
+				if ( $component_child_index !== false ) {
+					return $component['elements'][ $component_child_index ];
+				}
+			}
+		}
+	}
+
+	/**
+	 * Get data of specific component
+	 *
+	 * @param array  $element
+	 * @param string $key (optional)
+	 *
+	 * @return boolean|array false if no component found, else return the component data.
+	 *
+	 * @since 1.12
+	 */
+	public static function get_component( $element = [], $key = '' ) {
+		$component_id = $element['cid'] ?? false;
+
+		if ( ! $component_id ) {
+			return;
+		}
+
+		$component = self::get_component_by_cid( $component_id );
+
+		return $component && $key && isset( $component[ $key ] ) ? $component[ $key ] : $component;
+	}
+
+	/**
+	 * Return component instance
+	 *
+	 * Set root component settings and child component settings based on connected property settings.
+	 *
+	 * Use custom property settings or fallback to default property value.
+	 *
+	 * @param array  $element
+	 * @param string $key settings, element (return specific component element)
+	 *
+	 * @return boolean|array false if no component found, else return the component or if $key such as 'settings' provided, the specific component element data.
+	 *
+	 * @since 1.12
+	 */
+	public static function get_component_instance( $element = [], $key = '' ) {
+		$component_id = $element['cid'] ?? false;
+		$component    = $component_id ? self::get_component_by_cid( $component_id ) : false;
+
+		if ( ! $component ) {
+			return;
+		}
+
+		$component_props = $component['properties'] ?? [];
+		$instance_props  = $element['properties'] ?? [];
+
+		// Get component element
+		$component_element = self::get_component_element_by_id( $component_id );
+
+		// Use component element key-value in passed $element $key (i.e. settings)
+		if ( $key && isset( $element[ $key ] ) && isset( $component_element[ $key ] ) ) {
+			$element[ $key ] = $component_element[ $key ];
+		}
+
+		// Loop over connected properties to populate component element settings with custom or default values
+		foreach ( $component_props as $prop ) {
+			$instance_value            = $instance_props[ $prop['id'] ] ?? false;
+			$default_value             = $prop['default'] ?? false;
+			$connections_by_element_id = $prop['connections'] ?? [];
+
+			foreach ( $connections_by_element_id as $element_id => $setting_keys ) {
+				// Update component element settings
+				foreach ( $component['elements'] as &$component_child ) {
+					if ( $component_child['id'] == $element_id ) { // Use "==" instead of "===" as $element_id could be an integer
+						foreach ( $setting_keys as $setting_key ) {
+							// Use instance value if set > use default value > unset the setting
+							if ( $instance_value ) {
+								$component_child['settings'][ $setting_key ] = $instance_value;
+							} elseif ( $default_value ) {
+								$component_child['settings'][ $setting_key ] = $default_value;
+							} else {
+								unset( $component_child['settings'][ $setting_key ] );
+							}
+						}
+					}
+
+					// Update key-value with update property values
+					if (
+						$key &&
+						isset( $element[ $key ] ) &&
+						( $element['id'] === $component_child['id'] || $element['cid'] === $component_child['id'] )
+					) {
+						$element[ $key ] = $component_child[ $key ];
+					}
+				}
+			}
+		}
+
+		// Return specific element
+		if ( $key === 'element' ) {
+			return $component_element;
+		}
+
+		// Return value of passed $element $key
+		if ( $key && isset( $element[ $key ] ) ) {
+			return $element[ $key ];
+		}
+
+		// Return component or specific key-value like 'elements'
+		return $key && isset( $component[ $key ] ) ? $component[ $key ] : $component;
 	}
 
 	/**
@@ -1475,7 +1693,7 @@ class Helpers {
 		// Clear code to populate with setting from database
 		$code = '';
 
-		// STEP: Get element settings from database (check for global element too)
+		// STEP: Get element settings from database (also checks for component & global element)
 		$global_id        = $element_id;
 		$element_settings = self::get_element_settings( $post_id, $element_id, $global_id );
 
@@ -2814,6 +3032,169 @@ class Helpers {
 	}
 
 	/**
+	 * Return all valid pseudo classes
+	 *
+	 * Pseudo classes source of truth: https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes
+	 *
+	 * @since 1.12
+	 */
+	public static function get_valid_pseudo_classes() {
+		return [
+			':active',
+			':any-link',
+			':autofill',
+			':blank', // Experimental
+			':checked',
+			':current', // Experimental
+			':default',
+			':defined',
+			':dir(', // Experimental
+			':disabled',
+			':empty',
+			':enabled',
+			':first',
+			':first-child',
+			':first-of-type',
+			':fullscreen',
+			':future', // Experimental
+			':focus',
+			':focus-visible',
+			':focus-within',
+			':has(', // Experimental
+			':host',
+			':host(',
+			':host-context(', // Experimental
+			':hover',
+			':indeterminate',
+			':in-range',
+			':invalid',
+			':is(',
+			':lang(',
+			':last-child',
+			':last-of-type',
+			':left',
+			':link',
+			':local-link', // Experimental
+			':modal',
+			':not(',
+			':nth-child(',
+			':nth-col(', // Experimental
+			':nth-last-child(',
+			':nth-last-col(', // Experimental
+			':nth-last-of-type(',
+			':nth-of-type(',
+			':only-child',
+			':only-of-type',
+			':optional',
+			':out-of-range',
+			':past', // Experimental
+			':picture-in-picture',
+			':placeholder-shown',
+			':paused',
+			':playing',
+			':popover-open', // @since 1.12
+			':read-only',
+			':read-write',
+			':required',
+			':right',
+			':root',
+			':scope',
+			':state(', // Experimental
+			':target',
+			':target-within', // Experimental
+			':user-invalid', // Experimental
+			':valid',
+			':visited',
+			':where(',
+		];
+	}
+
+	/**
+	 * Return all valid pseudo elements
+	 *
+	 * Pseudo elements source of truth: https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-elements
+	 *
+	 * @since 1.12
+	 */
+	public static function get_valid_pseudo_elements() {
+		return [
+			'::after',
+			':after',
+
+			'::backdrop',
+			':backdrop',
+
+			'::before',
+			':before',
+
+			'::cue',
+			':cue',
+
+			'::cue-region',
+			':cue-region',
+
+			'::first-letter',
+			':first-letter',
+
+			'::first-line',
+			':first-line',
+
+			'::file-selector-button',
+			':file-selector-button',
+
+			'::grammar-error',
+			':grammar-error',
+
+			// @since 1.12
+			'::highlight(',
+			':highlight(',
+
+			'::marker',
+			':marker',
+
+			// @since 1.12: Uncommented
+			'::part(',
+			':part(',
+
+			'::placeholder',
+			':placeholder',
+
+			'::selection',
+			':selection',
+
+			// @since 1.12: Uncommented
+			'::slotted(',
+			':slotted(',
+
+			'::spelling-error',
+			':spelling-error',
+
+			'::target-text',
+			':target-text',
+
+			// @since 1.12
+			'::view-transition',
+			':view-transition',
+
+			// @since 1.12
+			'::view-transition-image-pair(',
+			':view-transition-image-pair(',
+
+			// @since 1.12
+			'::view-transition-group(',
+			':view-transition-group(',
+
+			// @since 1.12
+			'::view-transition-new',
+			':view-transition-new',
+
+			// @since 1.12
+			'::view-transition-old',
+			':view-transition-old',
+		];
+	}
+
+	/**
 	 * Apply wp_filter_post_kses to all string values in an array
 	 *
 	 * @since 1.11
@@ -2822,5 +3203,144 @@ class Helpers {
 		if ( is_string( $item ) ) {
 			$item = wp_filter_post_kses( $item );
 		}
+	}
+
+	/**
+	 * Scan site for global class usage
+	 *
+	 * @since 1.12
+	 *
+	 * @return array ['usedClasses' => array, 'unusedClasses' => array]
+	 */
+	public static function scan_global_classes_site_usage() {
+		// Get all global classes
+		$global_classes = get_option( BRICKS_DB_GLOBAL_CLASSES, [] );
+
+		// Get array of just the IDs from the global classes objects
+		$class_ids = array_map(
+			function( $class ) {
+				return $class['id'];
+			},
+			$global_classes
+		);
+
+		// Initialize usage tracking
+		$used_classes = [];
+
+		// Get all posts/templates that use Bricks
+		$post_types = array_merge(
+			array_keys( self::get_supported_post_types() ),
+			[ BRICKS_DB_TEMPLATE_SLUG ]
+		);
+
+		$query = new \WP_Query(
+			[
+				'post_type'      => $post_types,
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post_status'    => 'any',
+				'meta_query'     => [
+					'relation' => 'OR',
+					[
+						'key'     => BRICKS_DB_PAGE_HEADER,
+						'compare' => 'EXISTS',
+					],
+					[
+						'key'     => BRICKS_DB_PAGE_CONTENT,
+						'compare' => 'EXISTS',
+					],
+					[
+						'key'     => BRICKS_DB_PAGE_FOOTER,
+						'compare' => 'EXISTS',
+					],
+				],
+			]
+		);
+
+		// Scan each post's Bricks data
+		foreach ( $query->posts as $post_id ) {
+			self::scan_elements_for_global_classes( Database::get_data( $post_id, 'header' ), $used_classes );
+			self::scan_elements_for_global_classes( Database::get_data( $post_id, 'content' ), $used_classes );
+			self::scan_elements_for_global_classes( Database::get_data( $post_id, 'footer' ), $used_classes );
+		}
+
+		// Also scan global elements
+		$global_elements = get_option( BRICKS_DB_GLOBAL_ELEMENTS, [] );
+		self::scan_elements_for_global_classes( $global_elements, $used_classes );
+
+		// NOTE: Should we also scan BRICKS_DB_PAGE_SETTINGS and BRICKS_DB_GLOBAL_SETTINGS?
+		// These might contain global class references in custom CSS or other settings
+
+		// Make used classes unique AND only include ones that exist in global classes
+		$used_classes = array_values(
+			array_intersect(
+				array_unique( $used_classes ), // First make unique
+				$class_ids                   // Then only keep ones that exist in global classes
+			)
+		);
+
+		// Determine unused classes
+		$unused_classes = array_values( array_diff( $class_ids, $used_classes ) );
+
+		return [
+			'usedClasses'   => $used_classes,
+			'unusedClasses' => $unused_classes
+		];
+	}
+
+	/**
+	 * Recursively scan elements for global classes
+	 *
+	 * @since 1.12
+	 *
+	 * @param array $elements Array of Bricks elements.
+	 * @param array &$used_classes Reference to array tracking used class IDs.
+	 */
+	private static function scan_elements_for_global_classes( $elements, &$used_classes ) {
+		if ( ! is_array( $elements ) ) {
+			return;
+		}
+
+		foreach ( $elements as $element ) {
+			// Check element's global classes
+			if ( ! empty( $element['settings']['_cssGlobalClasses'] ) ) {
+				foreach ( $element['settings']['_cssGlobalClasses'] as $class_id ) {
+					// Add to array directly instead of using as key
+					$used_classes[] = $class_id;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Generate a label for a taxonomy
+	 *
+	 * @param string $taxonomy
+	 * @return string $taxonomy_label
+	 * @since 1.12
+	 */
+	public static function generate_taxonomy_label( $taxonomy ) {
+		$taxonomy_label  = '';
+		$taxonomy_object = get_taxonomy( $taxonomy );
+		$taxonomy_label  = '';
+
+		if ( gettype( $taxonomy_object ) === 'object' ) {
+			$taxonomy_label = $taxonomy_object->labels->name;
+		} else {
+			if ( $taxonomy === BRICKS_DB_TEMPLATE_TAX_TAG ) {
+				$taxonomy_label = esc_html__( 'Template tag', 'bricks' );
+			}
+
+			if ( $taxonomy === BRICKS_DB_TEMPLATE_TAX_BUNDLE ) {
+				$taxonomy_label = esc_html__( 'Template bundle', 'bricks' );
+			}
+		}
+
+		// Avoid empty taxonomy label that will be confusing (@since 1.12)
+		if ( $taxonomy_label === '' ) {
+			$taxonomy_label = ucwords( str_replace( '_', ' ', $taxonomy ) );
+		}
+
+		return $taxonomy_label;
 	}
 }

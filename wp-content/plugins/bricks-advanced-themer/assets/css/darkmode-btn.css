@@ -30,9 +30,9 @@
   align-items: center;
   position: relative;
   border-radius: var(--button-border-radius);
-  background-color: #41414100;
+  background-color: var(--light-bg-color);
   transition: background-color 250ms;
-  border-color: #353d4e;
+  border-color: var(--button-outline-color);
   border-width: var(--button-outline);
   border-style: solid;
   cursor: pointer;
@@ -46,8 +46,8 @@
   transition: none;
 }
 
-.brxe-brxc-darkmode-btn .brxc-toggle-checkbox:checked ~ label.brxc-toggle-slot {
-  background-color: #353d4e;
+.brxe-brxc-darkmode-btn .brxc-toggle-checkbox:checked ~ label .brxc-toggle-slot {
+  background-color: var(--dark-bg-color);
 }
 
 .brxe-brxc-darkmode-btn .brxc-sun-icon {
@@ -56,7 +56,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--button-outline-color);
+  scale: var(--light-icon-size);
+  fill: var(--light-icon-color);
+  color: var(--light-icon-color);
 }
 
 .brxe-brxc-darkmode-btn .brxc-toggle-checkbox ~ label .brxc-toggle-slot .brxc-moon-icon-wrapper,

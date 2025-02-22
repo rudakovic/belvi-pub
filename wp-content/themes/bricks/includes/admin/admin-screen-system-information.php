@@ -206,9 +206,9 @@ $server_environment['server_php_time_limit'] = [
 	'label' => esc_html__( 'PHP execution time limit', 'bricks' ),
 	'data'  => sprintf(
 		'<span class="%s">%s</span>%s',
-		$max_execution_time >= 180 ? 'text-success' : 'text-warning',
+		$max_execution_time >= 180 || $max_execution_time == 0 || $max_execution_time == -1 ? 'text-success' : 'text-warning',
 		$max_execution_time,
-		$max_execution_time >= 180 ? '' : ' - ' . esc_html__( 'Recommended max_execution_time: 180 (or more)', 'bricks' ) . '<a href="https://academy.bricksbuilder.io/article/requirements/#max-execution-time" class="tooltip" target="_blank" rel="noopener"><i class="dashicons dashicons-editor-help"></i></a>'
+		$max_execution_time >= 180 || $max_execution_time == 0 || $max_execution_time == -1 ? '' : ' - ' . esc_html__( 'Recommended max_execution_time: 180 (or more)', 'bricks' ) . '<a href="https://academy.bricksbuilder.io/article/requirements/#max-execution-time" class="tooltip" target="_blank" rel="noopener"><i class="dashicons dashicons-editor-help"></i></a>'
 	),
 ];
 

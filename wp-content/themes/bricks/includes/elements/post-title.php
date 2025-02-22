@@ -31,7 +31,6 @@ class Element_Post_Title extends Element {
 				'h5' => 'h5',
 				'h6' => 'h6',
 			],
-			'clearable'   => false,
 			'inline'      => true,
 			'placeholder' => 'h3',
 			'default'     => 'h1',

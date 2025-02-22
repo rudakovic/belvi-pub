@@ -107,6 +107,7 @@ class Element_Carousel extends Custom_Render_Element {
 				'infinite_scroll_separator',
 				'infinite_scroll',
 				'infinite_scroll_margin',
+				'infinite_scroll_delay', // @since 1.12
 			],
 		];
 
@@ -344,6 +345,7 @@ class Element_Carousel extends Custom_Render_Element {
 
 	public function render() {
 		$settings = $this->settings;
+		$fields   = $settings['fields'] ?? [];
 
 		// https://swiperjs.com/swiper-api
 		$options = [
@@ -578,10 +580,10 @@ class Element_Carousel extends Custom_Render_Element {
 				}
 
 				// Overlay wrapper
-				if ( $type === 'posts' && is_array( $settings['fields'] ) ) {
+				if ( $type === 'posts' && ! empty( $fields ) ) {
 					$overlay_fields = [];
 
-					foreach ( $settings['fields'] as $field ) {
+					foreach ( $fields as $field ) {
 						if ( isset( $field['overlay'] ) ) {
 							$overlay_fields[] = $field;
 						}
@@ -609,10 +611,10 @@ class Element_Carousel extends Custom_Render_Element {
 				}
 
 				// Content wrapper
-				if ( $type === 'posts' && is_array( $settings['fields'] ) ) {
+				if ( $type === 'posts' && ! empty( $fields ) ) {
 					$content_fields = [];
 
-					foreach ( $settings['fields'] as $field ) {
+					foreach ( $fields as $field ) {
 						if ( ! isset( $field['overlay'] ) ) {
 							$content_fields[] = $field;
 						}

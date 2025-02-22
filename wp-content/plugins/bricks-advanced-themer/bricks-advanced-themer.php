@@ -12,7 +12,7 @@
  * Author:      Maxime Beguin
  * Author URI:  https://advancedthemer.com/
  * Created:     12.04.2023
- * Version:     3.0.3
+ * Version:     3.0.5
  * Text Domain: bricks-advanced-themer
  * Domain Path: /lang
  * License:     GPL v2 or later

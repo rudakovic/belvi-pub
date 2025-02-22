@@ -198,21 +198,25 @@ class Templates {
 
 		$template_inline_css = self::generate_inline_css( $template_id, $elements );
 
+		// To store popup settings CSS (@since 1.12)
+		$popup_setting_css = '';
 		/**
 		 * Template type: Popup
 		 *
 		 * Generate CSS for popup template settings when popup added via Templates element.
 		 *
+		 * Non-loop, No condition.
+		 *
 		 * @since 1.11.1
 		 */
-		if ( self::get_template_type( $template_id ) === 'popup' ) {
-			if ( ! in_array( $template_id, Database::$active_templates['popup'] ) ) {
-				Database::$active_templates['popup'][] = $template_id;
-			}
-
-			$popup_inline_css = Assets::generate_inline_css( $template_id );
-			if ( $popup_inline_css ) {
-				$template_inline_css .= $popup_inline_css;
+		if (
+			self::get_template_type( $template_id ) === 'popup' &&
+			! in_array( $template_id, Database::$active_templates['popup'] ) &&
+			! Query::is_looping()
+		) {
+			$popup_setting_css = self::generate_popup_setting_css( $template_id );
+			if ( $popup_setting_css ) {
+				$template_inline_css .= $popup_setting_css;
 			}
 		}
 
@@ -228,12 +232,16 @@ class Templates {
 			$template_css_file_dir = Assets::$css_dir . "/post-$template_id.min.css";
 			$template_css_file_url = Assets::$css_url . "/post-$template_id.min.css";
 
-			if ( file_exists( $template_css_file_dir ) ) {
+			// Make sure the template CSS file is not already enqueued (@since 1.12)
+			if ( file_exists( $template_css_file_dir ) && ! wp_style_is( "bricks-post-$template_id" ) ) {
 				wp_enqueue_style( "bricks-post-$template_id", $template_css_file_url, [], filemtime( $template_css_file_dir ) );
 			}
 
 			// When assign section template to hook, some ID level styles are missing when using external files and is looping (@since 1.9.1)
-			if ( $is_on_hook && Query::is_any_looping() ) {
+			if (
+				( $is_on_hook && Query::is_any_looping() ) ||
+				$popup_setting_css !== ''
+			) {
 				Assets::$inline_css_dynamic_data .= $template_inline_css;
 			}
 		}
@@ -1405,168 +1413,68 @@ class Templates {
 	 * @since 1.7.1
 	 */
 	public static function template_import_create_missing_pseudo_classes( $pseudo_classes, $setting_keys = [] ) {
-		// Pseudo elements source of truth: https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-elements
-		$valid_pseudo_elements = [
-			'::after',
-			':after',
+		// Get valid pseudo elements & pseudo classes from Helper method (@since 1.12)
+		$valid_pseudo_elements = Helpers::get_valid_pseudo_elements();
+		$valid_pseudo_classes  = Helpers::get_valid_pseudo_classes();
 
-			'::backdrop',
-			':backdrop',
-
-			'::before',
-			':before',
-
-			'::cue',
-			':cue',
-
-			'::cue-region',
-			':cue-region',
-
-			'::first-letter',
-			':first-letter',
-
-			'::first-line',
-			':first-line',
-
-			'::file-selector-button',
-			':file-selector-button',
-
-			'::grammar-error',
-			':grammar-error',
-
-			'::marker',
-			':marker',
-
-			// '::part(',
-
-			'::placeholder',
-			':placeholder',
-
-			'::selection',
-			':selection',
-
-			// '::slotted(',
-
-			'::spelling-error',
-			':spelling-error',
-
-			'::target-text',
-			':target-text',
-		];
-
-		// Pseudo classes source of truth: https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes
-		$valid_pseudo_classes = [
-			':active',
-			':any-link',
-			':autofill',
-			':blank', // Experimental
-			':checked',
-			':current', // Experimental
-			':default',
-			':defined',
-			':dir(', // Experimental
-			':disabled',
-			':empty',
-			':enabled',
-			':first',
-			':first-child',
-			':first-of-type',
-			':fullscreen',
-			':future', // Experimental
-			':focus',
-			':focus-visible',
-			':focus-within',
-			':has(', // Experimental
-			':host',
-			':host(',
-			':host-context(', // Experimental
-			':hover',
-			':indeterminate',
-			':in-range',
-			':invalid',
-			':is(',
-			':lang(',
-			':last-child',
-			':last-of-type',
-			':left',
-			':link',
-			':local-link', // Experimental
-			':modal',
-			':not(',
-			':nth-child(',
-			':nth-col(', // Experimental
-			':nth-last-child(',
-			':nth-last-col(', // Experimental
-			':nth-last-of-type(',
-			':nth-of-type(',
-			':only-child',
-			':only-of-type',
-			':optional',
-			':out-of-range',
-			':past', // Experimental
-			':picture-in-picture',
-			':placeholder-shown',
-			':paused',
-			':playing',
-			':read-only',
-			':read-write',
-			':required',
-			':right',
-			':root',
-			':scope',
-			':state(', // Experimental
-			':target',
-			':target-within', // Experimental
-			':user-invalid', // Experimental
-			':valid',
-			':visited',
-			':where(',
-		];
+		// Merge pseudo elements & pseudo classes, as we need to check for both anyway (@since 1.12)
+		$allowed_pseudo = array_merge( $valid_pseudo_classes, $valid_pseudo_elements );
 
 		// Loop over all settings keys to find pseudo classes & pseudo elements
+		// Format is <settingKey>:<breakpoint>:<pseudoClass>, and only the settingKey is mandatory
 		foreach ( $setting_keys as $setting_key ) {
-			// Pseudo class is always the last setting key part
-			$setting_key_parts  = explode( ':', $setting_key );
-			$maybe_pseudo_class = ':' . end( $setting_key_parts );
+			$parts = explode( ':', $setting_key, 2 );
 
-			// STEP: Detect pseudo classes
-			foreach ( $valid_pseudo_classes as $pseudo_class ) {
-				// Pseudo class with arguments: :nth-child(even)
-				if ( strpos( $pseudo_class, '(' ) !== false ) {
-					if (
-						strpos( $maybe_pseudo_class, $pseudo_class ) !== false &&
-						! in_array( $maybe_pseudo_class, $pseudo_classes )
-					) {
-						$pseudo_classes[] = $maybe_pseudo_class;
-						break;
+			if ( count( $parts ) > 1 ) {
+				$secondPart = $parts[1];
+
+				// Check if second part starts with allowed_pseudo
+				if ( self::is_pseudo_class( ':' . $secondPart, $allowed_pseudo ) ) {
+					$pseudo_classes[] = ':' . $secondPart;
+				}
+
+				// If it's not, it might be a breakpoint, so try to split it again
+				else {
+					$parts = explode( ':', $secondPart, 2 );
+
+					if ( count( $parts ) > 1 ) {
+						$secondPart = $parts[1];
+
+						// Check if second part starts with allowed_pseudo
+						// If it's not, then it's not a pseudo class/element, or not allowed one.
+						if ( self::is_pseudo_class( ':' . $secondPart, $allowed_pseudo ) ) {
+							$pseudo_classes[] = ':' . $secondPart;
+						}
 					}
-				}
-
-				// All other pseudo classes
-				elseif (
-					substr( $setting_key, -strlen( $pseudo_class ) ) === $pseudo_class && // setting key ends with pseudo clas
-					substr( $setting_key, strpos( $setting_key, $pseudo_class ) - 1, 1 ) !== ':' && // charcter before pseudo clas is not a ':'
-					! in_array( $pseudo_class, $pseudo_classes ) // pseudo class not part of global pseudo classes array
-				) {
-					$pseudo_classes[] = $pseudo_class;
-					break;
-				}
-			}
-
-			// STEP: Detect pseudo elements
-			foreach ( $valid_pseudo_elements as $pseudo_element ) {
-				if (
-					substr( $setting_key, -strlen( $pseudo_element ) ) === $pseudo_element && // setting key ends with pseudo element
-					substr( $setting_key, strpos( $setting_key, $pseudo_element ) - 1, 1 ) !== ':' && // charcter before pseudo element is not a ':'
-					! in_array( $pseudo_element, $pseudo_classes ) // pseudo element not part of global pseudo classes array
-				) {
-					$pseudo_classes[] = $pseudo_element;
-					break;
 				}
 			}
 		}
 
+		// Distinct pseudo classes
+		$pseudo_classes = array_unique( $pseudo_classes );
+
+		// Convert to array
+		$pseudo_classes = array_values( $pseudo_classes );
+
 		return $pseudo_classes;
+	}
+
+	/**
+	 * Check if input is a pseudo class/element
+	 *
+	 * Use this one to distinguish between pseudo classes/elements and breakpoints
+	 *
+	 * @since 1.12
+	 */
+	private static function is_pseudo_class( $possible_pseudo, $allowed_pseudo_classes ) {
+		foreach ( $allowed_pseudo_classes as $allowed ) {
+			// Check if pseudo class is at the beginning of the string
+			if ( strpos( $possible_pseudo, $allowed ) === 0 ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -2113,6 +2021,16 @@ class Templates {
 					continue;
 				}
 
+				if ( Database::get_setting( 'cssLoading' ) === 'file' ) {
+					// Enqueue template styles early to avoid FOUC & CLS (@since 1.12)
+					$template_css_file_dir = Assets::$css_dir . "/post-$template_id.min.css";
+					$template_css_file_url = Assets::$css_url . "/post-$template_id.min.css";
+
+					if ( file_exists( $template_css_file_dir ) ) {
+						wp_enqueue_style( "bricks-post-$template_id", $template_css_file_url, [], filemtime( $template_css_file_dir ) );
+					}
+				}
+
 				// STEP: Add template to hook
 				add_action(
 					$hook_name,
@@ -2427,5 +2345,48 @@ class Templates {
 		}
 
 		return $run_template;
+	}
+
+	/**
+	 * Only used for popup inserted directly through the Template element (non-loop).
+	 *
+	 * NOTE: Do not use this function in other places!
+	 *
+	 * @since 1.12
+	 */
+	public static function generate_popup_setting_css( $popup_id ) {
+		$unique_key = 'template_popup_' . $popup_id;
+
+		// Return if already generated
+		if ( isset( Assets::$inline_css[ $unique_key ] ) ) {
+			return Assets::$inline_css[ $unique_key ];
+		}
+
+		$styles                     = '';
+		$template_settings_controls = Settings::get_controls_data( 'template' );
+		$popup_template_settings    = Helpers::get_template_settings( $popup_id );
+
+		// Maybe need to enqueue some scripts like AJAX loader
+		if ( is_array( $popup_template_settings ) && ! empty( $popup_template_settings ) ) {
+			Assets::enqueue_setting_specific_scripts( $popup_template_settings );
+		}
+
+		if ( ! empty( $template_settings_controls['controls'] ) ) {
+			// Generate CSS for popup settings
+			Assets::generate_inline_css_from_element(
+				[
+					'settings'             => $popup_template_settings,
+					'_templateCssSelector' => ".brxe-popup-{$popup_id}"
+				],
+				$template_settings_controls['controls'],
+				$unique_key
+			);
+
+			if ( isset( Assets::$inline_css[ $unique_key ] ) ) {
+				$styles .= "\n/* POPUP SETTINGS CSS */\n" . Assets::$inline_css[ $unique_key ] . "\n";
+			}
+		}
+
+		return $styles;
 	}
 }

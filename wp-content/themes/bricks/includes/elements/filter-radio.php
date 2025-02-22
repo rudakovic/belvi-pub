@@ -136,6 +136,9 @@ class Filter_Radio extends Filter_Element {
 			$current_value = $settings['filterValue'];
 		}
 
+		// Escape attributes or it can't match with the options (@since 1.12)
+		$current_value = esc_attr( $current_value );
+
 		$this->input_name = $settings['name'] ?? "form-field-{$this->id}";
 
 		if ( $this->is_filter_input() ) {
@@ -169,10 +172,21 @@ class Filter_Radio extends Filter_Element {
 				continue;
 			}
 
-			$option_value    = esc_attr( strip_tags( $option['value'] ) );
+			/**
+			 * Skip empty text options
+			 *
+			 * Each option must have a text. 0 is allowed, otherwise it will conflict with the "All" option / Placeholder option.
+			 *
+			 * @since 1.12
+			 */
+			if ( isset( $option['text'] ) && $option['text'] === '' ) {
+				continue;
+			}
+
+			$option_value    = esc_attr( $option['value'] );
 			$option_text     = $this->get_option_text_with_count( $option );
 			$option_class    = esc_attr( $option['class'] );
-			$option_checked  = $option_value === $current_value;
+			$option_checked  = self::is_option_value_matched( urldecode( $option_value ), $current_value );
 			$option_disabled = isset( $option['disabled'] );
 
 			$li_key    = 'li_' . $index;

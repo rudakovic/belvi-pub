@@ -19,11 +19,15 @@ if ( ! $template_data ) {
 	$form_classes[] = 'brxe-container';
 }
 
-echo '<div class="brxe-container before-checkout">';
-
+ob_start();
 do_action( 'woocommerce_before_checkout_form', $checkout );
+$before_checkout_form_html = ob_get_clean();
 
-echo '</div>';
+if ( $before_checkout_form_html ) {
+	echo '<div class="brxe-container before-checkout">';
+	echo $before_checkout_form_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	echo '</div>';
+}
 
 // If checkout registration is disabled and not logged in, the user cannot checkout.
 if ( ! $checkout->is_registration_enabled() && $checkout->is_registration_required() && ! is_user_logged_in() ) {

@@ -343,9 +343,12 @@ class Builder {
 				'widthLocked'                       => get_user_meta( get_current_user_id(), BRICKS_DB_BUILDER_WIDTH_LOCKED, true ),
 
 				'allowedHtmlTags'                   => Helpers::get_allowed_html_tags(),
+				'validPseudoClasses'                => Helpers::get_valid_pseudo_classes(),
+				'validPseudoElements'               => Helpers::get_valid_pseudo_elements(),
 				'wp'                                => self::get_wordpress_data(),
 				'academy'                           => [
 					'home'              => 'https://academy.bricksbuilder.io/',
+					'components'        => 'https://academy.bricksbuilder.io/article/components/',
 					'layout'            => 'https://academy.bricksbuilder.io/article/layout/',
 					'headerTemplate'    => 'https://academy.bricksbuilder.io/article/create-template/',
 					'footerTemplate'    => 'https://academy.bricksbuilder.io/article/create-template/',
@@ -366,6 +369,7 @@ class Builder {
 				'maxUploadSize'                     => wp_max_upload_size(),
 
 				'dynamicTags'                       => Integrations\Dynamic_Data\Providers::get_dynamic_tags_list(),
+				'dynamicTagsQueryLoop'              => Integrations\Dynamic_Data\Providers::get_query_supported_tags_list(),
 
 				// URL to edit header/content/footer templates
 				'editHeaderUrl'                     => ! empty( Database::$active_templates['header'] ) ? Helpers::get_builder_edit_link( Database::$active_templates['header'] ) : '',
@@ -447,6 +451,7 @@ class Builder {
 				'fonts'                             => self::get_fonts(), // @since 1.7.1
 				'templateManagerThumbnailHeight'    => Database::get_setting( 'templateManagerThumbnailHeight' ),
 				'codeMirrorConfig'                  => apply_filters( 'bricks/builder/codemirror_config', [] ), // @since 1.11.1
+				'builderGlobalClassesImport'        => Database::get_setting( 'builderGlobalClassesImport' ),
 			]
 		);
 
@@ -913,8 +918,10 @@ class Builder {
 			'author'                                      => esc_html__( 'Author', 'bricks' ),
 			'attachment'                                  => esc_html__( 'Attachment', 'bricks' ),
 			'attribute'                                   => esc_html__( 'Attribute', 'bricks' ),
+			'attributes'                                  => esc_html__( 'Attributes', 'bricks' ),
 			'autosaveBy'                                  => esc_html__( 'Autosave by', 'bricks' ),
 
+			'back'                                        => esc_html__( 'Back', 'bricks' ),
 			'background'                                  => esc_html__( 'Background', 'bricks' ),
 			'backgroundColor'                             => esc_html__( 'Background color', 'bricks' ),
 			'backgroundCustomSize'                        => esc_html__( 'Background custom size', 'bricks' ),
@@ -934,6 +941,7 @@ class Builder {
 			'backgroundVideoPosterYouTubeSize'            => esc_html__( 'Poster size for YouTube', 'bricks' ),
 			'backgroundVideoPosterYouTubeSizePlaceholder' => esc_html__( 'Max resolution', 'bricks' ),
 			'backToBuilder'                               => esc_html__( 'Back to builder', 'bricks' ),
+			'backToImportManager'                         => esc_html__( 'Back to import manager', 'bricks' ),
 			'baseBreakpoint'                              => esc_html__( 'Base breakpoint', 'bricks' ),
 			'baseline'                                    => esc_html__( 'Baseline', 'bricks' ),
 			'basic'                                       => esc_html__( 'Basic', 'bricks' ),
@@ -991,15 +999,18 @@ class Builder {
 			'centerRight'                                 => esc_html__( 'Center right', 'bricks' ),
 			'childOf'                                     => esc_html__( 'Child of', 'bricks' ),
 			'childless'                                   => esc_html__( 'Childless', 'bricks' ),
+			'circle'                                      => esc_html__( 'Circle', 'bricks' ),
+			'chooseFiles'                                 => esc_html__( 'Choose files', 'bricks' ),
+			'chooseImage'                                 => esc_html__( 'Choose image', 'bricks' ),
+			'class'                                       => esc_html__( 'Class', 'bricks' ),
+			'classes'                                     => esc_html__( 'Classes', 'bricks' ),
 			'className'                                   => esc_html__( 'Class name', 'bricks' ),
 			'classNameExists'                             => esc_html__( 'Class name already exists', 'bricks' ),
 			'classNamePlaceholder'                        => esc_html__( 'New class name', 'bricks' ),
 			'clickToDownload'                             => esc_html__( 'Click to download', 'bricks' ),
-			'circle'                                      => esc_html__( 'Circle', 'bricks' ),
-			'chooseFiles'                                 => esc_html__( 'Choose files', 'bricks' ),
-			'chooseImage'                                 => esc_html__( 'Choose image', 'bricks' ),
-			'classes'                                     => esc_html__( 'Classes', 'bricks' ),
+			'classesDiscarded'                            => esc_html__( 'Classes discarded', 'bricks' ),
 			'classesDuplicated'                           => esc_html__( 'Classes duplicated', 'bricks' ),
+			'classesFound'                                => esc_html__( 'Classes found', 'bricks' ),
 			'classesRenamed'                              => esc_html__( 'Classes renamed', 'bricks' ),
 			'clauseName'                                  => esc_html__( 'Clause name', 'bricks' ),
 			'clauseNameDesc'                              => esc_html__( 'Set clause name to be used as "Order by" parameter.', 'bricks' ),
@@ -1024,6 +1035,9 @@ class Builder {
 			'community'                                   => esc_html__( 'Community', 'bricks' ),
 			'communityTemplates'                          => esc_html__( 'Community templates', 'bricks' ),
 			'compare'                                     => esc_html__( 'Compare', 'bricks' ),
+			'component'                                   => esc_html__( 'Component', 'bricks' ),
+			'components'                                  => esc_html__( 'Components', 'bricks' ),
+			'componentNotFoundInfo'                       => esc_html__( 'Element can\'t be rendered as the connected component doesn\'t exist. Unlink this instance or import the missing component.', 'bricks' ),
 			'condition'                                   => esc_html__( 'Condition', 'bricks' ),
 			'conditions'                                  => esc_html__( 'Conditions', 'bricks' ),
 			'conditionSelect'                             => esc_html__( 'Select condition', 'bricks' ),
@@ -1034,6 +1048,9 @@ class Builder {
 			'conflictsDesc'                               => esc_html__( 'Resolve all conflicts listed below to save your changes.', 'bricks' ),
 			'conflictsDesc2'                              => esc_html__( 'Click "Accept" to use the incoming database changes. Click "Discard" to save your current builder data instead.', 'bricks' ),
 			'conic'                                       => esc_html__( 'Conic', 'bricks' ),
+			'connect'                                     => esc_html__( 'Connect', 'bricks' ),
+			'connectProperty'                             => esc_html__( 'Connect property', 'bricks' ),
+			'connectedProperty'                           => esc_html__( 'Connected property', 'bricks' ),
 			'contactUs'                                   => esc_html__( 'Contact us', 'bricks' ),
 			'contain'                                     => esc_html__( 'Contain', 'bricks' ),
 			'container'                                   => esc_html__( 'Container', 'bricks' ),
@@ -1048,8 +1065,11 @@ class Builder {
 			'copyToClipboard'                             => esc_html__( 'Copy to clipboard', 'bricks' ),
 			'copyElementSelector'                         => esc_html__( 'Copy CSS selector', 'bricks' ),
 			'cover'                                       => esc_html__( 'Cover', 'bricks' ),
+			'currentPage'                                 => esc_html__( 'Current page', 'bricks' ),
 			'currentPostAuthor'                           => esc_html__( 'Current post author', 'bricks' ),
 			'currentPostTerm'                             => esc_html__( 'Current post term', 'bricks' ),
+			'createComponent'                             => esc_html__( 'Create component', 'bricks' ),
+			'createProperty'                              => esc_html__( 'Create property', 'bricks' ),
 			'create'                                      => esc_html__( 'Create', 'bricks' ),
 			'created'                                     => esc_html__( 'Created', 'bricks' ),
 			'createTemplate'                              => esc_html__( 'Create template', 'bricks' ),
@@ -1085,10 +1105,12 @@ class Builder {
 			'defaultTemplatesDisabled'                    => sprintf( esc_html__( '%s. Set template conditions or enable default templates.', 'bricks' ), '<a href="' . admin_url( 'admin.php?page=bricks-settings#tab-templates' ) . '" target="_blank">' . esc_html__( 'Default templates are disabled', 'bricks' ) . '</a>' ),
 			'dashed'                                      => esc_html__( 'dashed', 'bricks' ),
 			'date'                                        => esc_html__( 'Date', 'bricks' ),
+			'delay'                                       => esc_html__( 'Delay', 'bricks' ),
 			'delete'                                      => esc_html__( 'Delete', 'bricks' ),
-			'deleteAll'                                   => esc_html__( 'Delete all', 'bricks' ),
 			'deleted'                                     => esc_html__( 'Deleted', 'bricks' ),
+			'deleteAll'                                   => esc_html__( 'Delete all', 'bricks' ),
 			'deletePermanently'                           => esc_html__( 'Delete permanently', 'bricks' ),
+			'deleteComponentsInfo'                        => esc_html__( 'Export all components first by clicking the "Export" icon above before deleting any. Once exported, hover over the component you\'d like to delete, then click the "Delete" icon.', 'bricks' ),
 			'deprecated'                                  => esc_html__( 'Deprecated', 'bricks' ),
 			'descending'                                  => esc_html__( 'Descending', 'bricks' ),
 			'description'                                 => esc_html__( 'Description', 'bricks' ),
@@ -1101,6 +1123,8 @@ class Builder {
 			'disabled'                                    => esc_html__( 'Disabled', 'bricks' ),
 			'disableQueryMerge'                           => esc_html__( 'Disable query merge', 'bricks' ),
 			'discard'                                     => esc_html__( 'Discard', 'bricks' ),
+			'disconnect'                                  => esc_html__( 'Disconnect', 'bricks' ),
+			'discarded'                                   => esc_html__( 'Discarded', 'bricks' ),
 			'div'                                         => 'Div',
 			'documentation'                               => esc_html__( 'Documentation', 'bricks' ),
 			'dots'                                        => esc_html__( 'Dots', 'bricks' ),
@@ -1110,6 +1134,8 @@ class Builder {
 			'downloaded'                                  => esc_html__( 'Downloaded', 'bricks' ),
 			'downloading'                                 => esc_html__( 'Downloading', 'bricks' ),
 			'duplicate'                                   => esc_html__( 'Duplicate', 'bricks' ),
+			'duplicateClassesDetected'                    => esc_html__( 'Duplicate classes detected', 'bricks' ),
+			'duplicateClassesWarning'                     => esc_html__( 'Duplicate classes detected. Resolve conflicts before importing.', 'bricks' ),
 			'dynamicData'                                 => esc_html__( 'Dynamic Data', 'bricks' ),
 			'dynamicDataIsEmpty'                          => esc_html__( 'Dynamic data is empty.', 'bricks' ),
 			'dynamicDataSelect'                           => esc_html__( 'Select dynamic data', 'bricks' ),
@@ -1117,6 +1143,7 @@ class Builder {
 
 			'edit'                                        => esc_html__( 'Edit', 'bricks' ),
 			'edited'                                      => esc_html__( 'Edited', 'bricks' ),
+			'editComponent'                               => esc_html__( 'Edit component', 'bricks' ),
 			'editTemplate'                                => esc_html__( 'Edit Template', 'bricks' ),
 			'editColorPalette'                            => esc_html__( 'Edit palette', 'bricks' ),
 			'editing'                                     => esc_html__( 'Editing', 'bricks' ),
@@ -1174,6 +1201,7 @@ class Builder {
 			'errorCreatingClass'                          => esc_html__( 'Class found in trash', 'bricks' ),
 			'errorDeletingClass'                          => esc_html__( 'Error deleting class', 'bricks' ),
 			'errorDeletingClasses'                        => esc_html__( 'Error deleting class', 'bricks' ),
+			'errorFetchingSiteClasses'                    => esc_html__( 'Error fetching site classes', 'bricks' ),
 			'errorGeneratingCodeSignature'                => esc_html__( 'Code signatures are locked.', 'bricks' ),
 			'errorRestoringClass'                         => esc_html__( 'Error restoring class', 'bricks' ),
 			'errorOnSave'                                 => esc_html__( 'Error on save', 'bricks' ),
@@ -1228,14 +1256,19 @@ class Builder {
 			'ghostDark'                                   => esc_html__( 'Outline - Dark', 'bricks' ),
 			'ghostLight'                                  => esc_html__( 'Outline - Light', 'bricks' ),
 			'ghostPrimary'                                => esc_html__( 'Outline - Primary', 'bricks' ),
+			'global'                                      => esc_html__( 'Global', 'bricks' ),
 			'globalElement'                               => esc_html__( 'Global element', 'bricks' ),
+			'globalClassManagerImportSettings'            => '<a href="' . admin_url( 'admin.php?page=bricks-settings#tab-builder' ) . '" target="_blank">Bricks > ' . esc_html__( 'Settings', 'bricks' ) . ' > ' . esc_html__( 'Builder', 'bricks' ) . ' > ' . esc_html__( 'Global class import manager', 'bricks' ) . '</a>',
 			'globalClassManagerInfoBulk'                  => esc_html__( 'Press CMD/CTRL or SHIFT to select and edit multiple categories or classes.', 'bricks' ),
 			'globalClassManagerInfoCategory'              => esc_html__( 'Select one or multiple categories to filter your classes by them.', 'bricks' ),
 			'globalClassManagerInfoCategorize'            => esc_html__( 'Categorize classes by dragging them into a specific category or into "Uncategorize" to uncategorize them.', 'bricks' ),
+			'globalClassManagerInfoImport'                => esc_html__( 'Once you have reviewed all classes and resolved all conflicts, click the "Import" button at the top to import the classes into your site.', 'bricks' ),
 			'globalClassManagerInfoClass'                 => esc_html__( 'Select one or multiple classes to edit them.', 'bricks' ),
 			'globalClassManagerInfoOrder'                 => esc_html__( 'Drag any category or class up/down to order it.', 'bricks' ),
 			'globalClassManagerInfoTitle'                 => esc_html__( 'How to use the global class manager', 'bricks' ),
+			'globalClassManagerImportInfoTitle'           => esc_html__( 'How to use the class importer', 'bricks' ),
 			'globalClassManagerSearchInfo'                => esc_html__( 'Prefix with a dot to search for classes starting with the string, or suffix with a dot to search for classes ending with the string.', 'bricks' ),
+			'globalClassManagerImportSearchInfo'          => esc_html__( 'Prefix with a dot to search for imported classes starting with the string, or suffix with a dot to search for imported classes ending with the string.', 'bricks' ),
 			'globalClassesImported'                       => esc_html__( 'Global classes imported', 'bricks' ),
 			'globalClassesEmptyDescription'               => esc_html__( 'Enter the name of your first global CSS class in the field above. Then hit enter to create it.', 'bricks' ) . ' (' . Helpers::article_link( 'global-css-classes', esc_html__( 'Learn more', 'bricks' ) ) . ')',
 			'globalElements'                              => esc_html__( 'Global elements', 'bricks' ),
@@ -1256,6 +1289,9 @@ class Builder {
 				esc_html__( 'Color stop', 'bricks' ),
 				esc_html__( 'Colors', 'bricks' )
 			),
+			'groups'                                      => esc_html__( 'Groups', 'bricks' ),
+			'group'                                       => esc_html__( 'Group', 'bricks' ),
+			'groupAlreadyExists'                          => esc_html__( 'Group already exists', 'bricks' ),
 			'gardientColorsDescription'                   => esc_html__( 'Add at least two colors to create a gradient.', 'bricks' ),
 			'goToSettingsPanel'                           => esc_html__( 'Back to settings', 'bricks' ),
 			'gotIt'                                       => esc_html__( 'Got it', 'bricks' ),
@@ -1263,6 +1299,7 @@ class Builder {
 			'grid'                                        => esc_html__( 'Grid', 'bricks' ),
 			'gutter'                                      => esc_html__( 'Spacing', 'bricks' ),
 
+			'hasConflict'                                 => esc_html__( 'Has conflict', 'bricks' ),
 			'hasStyles'                                   => esc_html__( 'Has styles', 'bricks' ),
 			'hasNoStyles'                                 => esc_html__( 'Has no styles', 'bricks' ),
 			'header'                                      => esc_html__( 'Header', 'bricks' ),
@@ -1283,13 +1320,21 @@ class Builder {
 			'hue'                                         => esc_html__( 'Hue', 'bricks' ),
 
 			'icon'                                        => esc_html__( 'Icon', 'bricks' ),
-			'id'                                          => esc_html__( 'ID', 'bricks' ),
 			'ignoreStickyPosts'                           => esc_html__( 'Ignore sticky posts', 'bricks' ),
 			'image'                                       => esc_html__( 'Image', 'bricks' ),
+			'imageGallery'                                => esc_html__( 'Image gallery', 'bricks' ),
 			'imageGalleryDescription'                     => esc_html__( 'Hold down CMD/CRTL to select multiple images.', 'bricks' ),
 			'imageNotFound'                               => esc_html__( 'Image not found', 'bricks' ),
 			'imageSize'                                   => esc_html__( 'Image size', 'bricks' ),
 			'import'                                      => esc_html__( 'Import', 'bricks' ),
+			'imported'                                    => esc_html__( 'Imported', 'bricks' ),
+			'importClasses'                               => esc_html__( 'Import classes', 'bricks' ),
+			'importClassesSkip'                           => esc_html__( 'Skip class import', 'bricks' ),
+			'importClassesInfo'                           => esc_html__( 'New classes detected. Resolve conflicts, if any, to import or skip.', 'bricks' ),
+			'importClassConflictById'                     => esc_html__( 'A class with the same internal ID, but different settings, already exists on this site. You must either override the existing class on your site or discard this imported version.', 'bricks' ),
+			'importClassConflictByName'                   => esc_html__( 'A class with the same name, but different settings, already exists on this site. You must either override the existing class on your site or discard this imported version.', 'bricks' ),
+			'importClassesConflict'                       => esc_html__( 'One or more of the selected classes conflict with existing classes on your site. You must either override the existing classes on your site or discard these imported versions.', 'bricks' ),
+			'importClassesResolveConflicts'               => esc_html__( 'Resolve all conflicts listed below, highlighted in red, to continue with importing those classes.', 'bricks' ),
 			'importCssVariables'                          => esc_html__( 'Import CSS variables', 'bricks' ),
 			'importImages'                                => esc_html__( 'Import images', 'bricks' ),
 			'importImagesDisabled'                        => esc_html__( 'Disabled: Show placeholder images.', 'bricks' ),
@@ -1300,6 +1345,7 @@ class Builder {
 			'importTemplate'                              => esc_html__( 'Import template', 'bricks' ),
 			'importNote'                                  => esc_html__( 'Valid JSON data required to run the importer', 'bricks' ),
 			'importTemplateColorPalette'                  => esc_html__( 'This template contains a color palette. Would you like to import it?', 'bricks' ),
+			'importTemplateColorPalettes'                 => esc_html__( 'This template contains color palettes. Would you like to import them?', 'bricks' ),
 			'importTemplateGlobalVariables'               => esc_html__( 'This template contains global variables. Would you like to import them?', 'bricks' ),
 			'importTemplateThemeStyle'                    => esc_html__( 'This template contains a theme style. Would you like to import it?', 'bricks' ),
 			'include'                                     => esc_html__( 'Include', 'bricks' ),
@@ -1318,7 +1364,10 @@ class Builder {
 			'insertLayout'                                => esc_html__( 'Insert layout', 'bricks' ),
 			'insertSection'                               => esc_html__( 'Insert section', 'bricks' ),
 			'insertTemplate'                              => esc_html__( 'Insert template', 'bricks' ),
+			'insertComponentNestedError'                  => esc_html__( 'A component within a component is not supported.', 'bricks' ),
 			'inset'                                       => esc_html__( 'Inset', 'bricks' ),
+			'instance'                                    => esc_html__( 'Instance', 'bricks' ),
+			'instances'                                   => esc_html__( 'Instances', 'bricks' ),
 			'interactionId'                               => esc_html__( 'Interaction ID', 'bricks' ),
 			'interactions'                                => esc_html__( 'Interactions', 'bricks' ),
 			'internal'                                    => esc_html__( 'Internal post/page', 'bricks' ),
@@ -1378,6 +1427,7 @@ class Builder {
 				'all'       => esc_html__( 'All sides linked', 'bricks' ),
 			],
 
+			'main'                                        => esc_html__( 'Main', 'bricks' ),
 			'mainQuery'                                   => esc_html__( 'Main query', 'bricks' ),
 			'manage'                                      => esc_html__( 'Manage', 'bricks' ),
 			'margin'                                      => esc_html__( 'Margin', 'bricks' ),
@@ -1428,13 +1478,25 @@ class Builder {
 			'new'                                         => esc_html__( 'New', 'bricks' ),
 			'newColorPalette'                             => esc_html__( 'New color palette name', 'bricks' ),
 			'newColorPaletteCreateFirstColor'             => esc_html__( 'Add your first color to this palette by selecting a color value above and then click "Save".', 'bricks' ),
+			'newGroupName'                                => esc_html__( 'New group name', 'bricks' ),
 			'newImageName'                                => esc_html__( 'Type name, hit enter', 'bricks' ),
 			'next'                                        => esc_html__( 'Next', 'bricks' ),
+			'noClassesToImport'                           => esc_html__( 'No classes to import.', 'bricks' ),
+			'noComponentsFound'                           => esc_html__( 'No components found.', 'bricks' ),
 			'noConditionsSet'                             => esc_html__( 'Click the "+" icon to add your first condition.', 'bricks' ) . ' <strong>' . esc_html__( 'Conditions don\'t run in the builder.', 'bricks' ) . '</strong>',
 			'noInteractionsSet'                           => esc_html__( 'Click the "+" icon to add your first interaction.', 'bricks' ) . ' <strong>' . esc_html__( 'Interactions don\'t run in the builder.', 'bricks' ) . '</strong>',
 			'noContent'                                   => esc_html__( 'No content', 'bricks' ),
 			'noFileSelected'                              => esc_html__( 'No file selected.', 'bricks' ),
+			'noInstances'                                 => esc_html__( 'No instances', 'bricks' ),
+			'noPropertiesConnected'                       => esc_html__( 'No properties connected.', 'bricks' ),
+			'noConnectablePropertyFound'                  => esc_html__( 'No connectable property found.', 'bricks' ),
+			'noPropertiesConnectedDesc'                   => esc_html__( 'Properties found, but none are conneted to any setting of your main component.', 'bricks' ),
+			'noPropertiesDesc'                            => esc_html__( 'Create properties and connect them to your component settings to customize a component instance.', 'bricks' ),
+			'noPropertiesFound'                           => esc_html__( 'No properties found.', 'bricks' ),
+			'noPropertyGroupsFound'                       => esc_html__( 'No property groups found.', 'bricks' ),
 			'no'                                          => esc_html__( 'No', 'bricks' ),
+			'noConflict'                                  => esc_html__( 'No conflict', 'bricks' ),
+			'noDefaultValue'                              => esc_html__( 'No default value', 'bricks' ),
 			'none'                                        => esc_html__( 'None', 'bricks' ),
 			'noRepeat'                                    => esc_html__( 'No-repeat', 'bricks' ),
 			'noResults'                                   => esc_html__( 'No results', 'bricks' ),
@@ -1478,8 +1540,11 @@ class Builder {
 			'order'                                       => esc_html__( 'Order', 'bricks' ),
 			'orderBy'                                     => esc_html__( 'Order by', 'bricks' ),
 			'otherClasses'                                => esc_html__( 'Other classes', 'bricks' ),
+			'otherPages'                                  => esc_html__( 'Other pages', 'bricks' ),
 			'overlay'                                     => esc_html__( 'Overlay', 'bricks' ),
 			'overline'                                    => esc_html__( 'Overline', 'bricks' ),
+			'override'                                    => esc_html__( 'Override', 'bricks' ),
+			'overrideLocalClass'                          => esc_html__( 'Override local class', 'bricks' ),
 			'overwrite'                                   => esc_html__( 'Overwrite', 'bricks' ),
 
 			'padding'                                     => esc_html__( 'Padding', 'bricks' ),
@@ -1521,6 +1586,11 @@ class Builder {
 			'prefix'                                      => esc_html__( 'Prefix', 'bricks' ),
 			'previewMode'                                 => esc_html__( 'Preview mode', 'bricks' ),
 			'previewTemplate'                             => esc_html__( 'Preview template', 'bricks' ),
+			'property'                                    => esc_html__( 'Property', 'bricks' ),
+			'propertyCreateDescription'                   => esc_html__( 'Properties let you set custom values in each component instance.', 'bricks' ),
+			'propertyGroups'                              => esc_html__( 'Property groups', 'bricks' ),
+			'propertyGroupsDesc'                          => esc_html__( 'Organize your properties in groups. Reorder your groups via drag & drop. Click to rename. Create a property group using the form below.', 'bricks' ),
+			'properties'                                  => esc_html__( 'Properties', 'bricks' ),
 			'pseudoClassActive'                           => esc_html__( 'Active pseudo-class', 'bricks' ),
 			'pseudoClassCreated'                          => esc_html__( 'Pseudo-class created', 'bricks' ),
 			'pseudoClassDeleted'                          => esc_html__( 'Pseudo-class deleted', 'bricks' ),
@@ -1532,6 +1602,7 @@ class Builder {
 			'published'                                   => esc_html__( 'Published', 'bricks' ),
 			'publishedDate'                               => esc_html__( 'Published date', 'bricks' ),
 
+			'query'                                       => esc_html__( 'Query', 'bricks' ),
 			'queryEditor'                                 => esc_html__( 'Query editor', 'bricks' ) . ' (PHP)',
 			'queryEditorInfo'                             => sprintf(
 				// translators: %s: Posts query link, %s: Terms query link, %s: Users query link
@@ -1564,6 +1635,7 @@ class Builder {
 			'renameImages'                                => esc_html__( 'Rename images', 'bricks' ),
 			'renameImagesDisabled'                        => esc_html__( 'Disabled: Keep original image filename.', 'bricks' ),
 			'renameImagesEnabled'                         => esc_html__( 'Enabled: Rename image before download.', 'bricks' ),
+			'richText'                                    => esc_html__( 'Rich Text', 'bricks' ),
 			'linkRenderedAs'                              => esc_html__( 'Link rendered as', 'bricks' ),
 			'repeat'                                      => esc_html__( 'Repeat', 'bricks' ),
 			'relation'                                    => esc_html__( 'Relation', 'bricks' ),
@@ -1596,6 +1668,7 @@ class Builder {
 
 			'saturation'                                  => esc_html__( 'Saturation', 'bricks' ),
 			'save'                                        => esc_html__( 'Save', 'bricks' ),
+			'saveAsComponent'                             => esc_html__( 'Save as component', 'bricks' ),
 			'saveDraft'                                   => esc_html__( 'Save draft', 'bricks' ),
 			'saveAsGlobalElement'                         => esc_html__( 'Save as global element', 'bricks' ),
 			'saveAsTemplate'                              => esc_html__( 'Save as template', 'bricks' ),
@@ -1605,6 +1678,7 @@ class Builder {
 			'savedAsTemplate'                             => esc_html__( 'Saved as template', 'bricks' ),
 			'saveVariables'                               => esc_html__( 'Save Variables', 'bricks' ),
 			'scale'                                       => esc_html__( 'Scale', 'bricks' ),
+			'scanningSiteClassesInfo'                     => esc_html__( 'Scanning your entire site. This may take a moment.', 'bricks' ),
 			'screenshotsGenerated'                        => esc_html__( 'Screenshots generated', 'bricks' ),
 			'scroll'                                      => esc_html__( 'Scroll', 'bricks' ),
 			'searchElements'                              => esc_html__( 'Search elements ..', 'bricks' ),
@@ -1711,6 +1785,7 @@ class Builder {
 			'term'                                        => esc_html__( 'Term', 'bricks' ),
 			'text'                                        => esc_html__( 'Text', 'bricks' ),
 			'textAlign'                                   => esc_html__( 'Text align', 'bricks' ),
+			'textArea'                                    => esc_html__( 'Textarea', 'bricks' ),
 			'textDecoration'                              => esc_html__( 'Text decoration', 'bricks' ),
 			'textShadow'                                  => esc_html__( 'Text shadow', 'bricks' ),
 			'textTransform'                               => esc_html__( 'Text transform', 'bricks' ),
@@ -1750,10 +1825,14 @@ class Builder {
 			],
 			'trash'                                       => esc_html__( 'Trash', 'bricks' ),
 
+			'unconnected'                                 => esc_html__( 'Unconnected', 'bricks' ),
+			'unconnectedPropertiesDescription'            => esc_html__( 'Unconnected properties detected. Edit your component or any of its children to connect your properties to a specific setting.', 'bricks' ),
 			'underline'                                   => esc_html__( 'Underline', 'bricks' ),
 			'undo'                                        => esc_html__( 'Undo', 'bricks' ),
 			'unlink'                                      => esc_html__( 'Unlink', 'bricks' ),
 			'unlinked'                                    => esc_html__( 'Unlinked', 'bricks' ),
+			'unlinkComponent'                             => esc_html__( 'Unlink component', 'bricks' ),
+			'unlinkComponentConfirm'                      => esc_html__( 'Are you sure you want to unlink this component?', 'bricks' ),
 			'unlock'                                      => esc_html__( 'Unlock', 'bricks' ),
 			'unlocked'                                    => esc_html__( 'Unlocked', 'bricks' ),
 			'unsplashErrorInvalidApiKey'                  => esc_html__( 'Your Unsplash API key is not valid.', 'bricks' ),
@@ -1773,6 +1852,7 @@ class Builder {
 			'unsignedCode'                                => esc_html__( 'Unsigned code', 'bricks' ),
 			'unsplashSetApiKey'                           => '<a href="' . Helpers::settings_url( '#tab-api-keys' ) . '" class="button" target="_blank">' . esc_html__( 'Set Unsplash API Key', 'bricks' ) . '</a>',
 			'unusedOnThisPage'                            => esc_html__( 'Unused on this page', 'bricks' ),
+			'unusedOnThisSite'                            => esc_html__( 'Unused on this site', 'bricks' ),
 			'update'                                      => esc_html__( 'Update', 'bricks' ),
 			'updated'                                     => esc_html__( 'Updated', 'bricks' ),
 			'uppercase'                                   => esc_html__( 'Uppercase', 'bricks' ),
@@ -1781,6 +1861,7 @@ class Builder {
 			'url'                                         => esc_html__( 'URL', 'bricks' ),
 			'urlParameters'                               => esc_html__( 'URL parameters', 'bricks' ),
 			'usedOnThisPage'                              => esc_html__( 'Used on this page', 'bricks' ),
+			'usedOnThisSite'                              => esc_html__( 'Used on this site', 'bricks' ),
 			'userProfile'                                 => esc_html__( 'User profile', 'bricks' ),
 
 			'value'                                       => esc_html__( 'Value', 'bricks' ),
@@ -1804,6 +1885,7 @@ class Builder {
 
 			'whiteSpace'                                  => esc_html__( 'White space', 'bricks' ),
 			'width'                                       => esc_html__( 'Width', 'bricks' ),
+			'willOverrideLocal'                           => esc_html__( 'Will override local', 'bricks' ),
 			'woocommerce_product'                         => esc_html__( 'Product', 'bricks' ),
 			'wordpress'                                   => esc_html__( 'WordPress', 'bricks' ),
 			'wrap'                                        => esc_html__( 'Wrap', 'bricks' ),
@@ -2105,6 +2187,12 @@ class Builder {
 			],
 		];
 
+		// Components
+		if ( ! empty( $global_data['components'] ) ) {
+			// STEP: Upgrade components to use latest data structure and add to load_data
+			$load_data['components'] = Components::upgrade_components( $global_data['components'] );
+		}
+
 		// Add color palettes to load_data
 		if ( ! empty( $global_data['colorPalette'] ) && is_array( $global_data['colorPalette'] ) ) {
 			$load_data['colorPalette'] = $global_data['colorPalette'];
@@ -2231,6 +2319,23 @@ class Builder {
 				$blocks = parse_blocks( $post->post_content );
 
 				$load_data['blocks'] = $blocks;
+			}
+		}
+
+		// Add template preview logic for single templates (@since 1.12)
+		if ( $template_content_id && $template_content_id !== $post_id ) {
+			// Load template content for static area
+			$template_content = Database::get_data( $template_content_id, 'content' );
+
+			if ( ! empty( $template_content ) ) {
+				$load_data['staticContent'] = $template_content;
+
+				// Add template page settings to generate CSS for static content (@since 1.12)
+				$template_page_settings = get_post_meta( $template_content_id, BRICKS_DB_PAGE_SETTINGS, true );
+
+				if ( ! empty( $template_page_settings ) ) {
+					$load_data['outerPostContentTemplatePageSettings'] = $template_page_settings;
+				}
 			}
 		}
 
@@ -2378,6 +2483,19 @@ class Builder {
 				if ( $is_bricks_shortcode ) {
 					continue;
 				}
+			}
+
+			/**
+			 * Get component instance (root) settings
+			 *
+			 * component.elements (children) are requested in builder.
+			 *
+			 * @since 1.12
+			 */
+			$component_instance_settings = Helpers::get_component_instance( $element, 'settings' );
+
+			if ( is_array( $component_instance_settings ) ) {
+				$element['settings'] = $component_instance_settings;
 			}
 
 			// STEP: Pre-populate dynamic data for all elements (@since 1.7.1)

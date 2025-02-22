@@ -270,6 +270,16 @@ class Element_Image_Gallery extends Element {
 			'type'     => 'dimensions',
 			'required' => [ 'link', '=', 'lightbox' ],
 		];
+
+		// Lightbox ID (@since 1.12)
+		$this->controls['lightboxId'] = [
+			'tab'         => 'content',
+			'label'       => esc_html__( 'Lightbox', 'bricks' ) . ': ID',
+			'type'        => 'text',
+			'inline'      => true,
+			'required'    => [ 'link', '=', 'lightbox' ],
+			'description' => esc_html__( 'Images of the same lightbox ID are grouped together.', 'bricks' ),
+		];
 	}
 
 	public function get_normalized_image_settings( $settings ) {
@@ -351,6 +361,7 @@ class Element_Image_Gallery extends Element {
 		// Set isotopeJS CSS class
 		if ( $layout === 'masonry' ) {
 			$root_classes[] = 'isotope';
+			$root_classes[] = 'isotope-before-init'; // Avoid unstyled content visible (@since 1.12)
 		}
 
 		$this->set_attribute( '_root', 'class', $root_classes );
@@ -382,6 +393,11 @@ class Element_Image_Gallery extends Element {
 
 			if ( ! empty( $settings['lightboxThumbnailSize'] ) ) {
 				$this->set_attribute( '_root', 'data-lightbox-thumbnail-size', esc_attr( $settings['lightboxThumbnailSize'] ) );
+			}
+
+			// Lightbox ID (@since 1.12)
+			if ( ! empty( $settings['lightboxId'] ) ) {
+				$this->set_attribute( '_root', 'data-lightbox-id', esc_attr( $settings['lightboxId'] ) );
 			}
 		}
 
@@ -457,7 +473,13 @@ class Element_Image_Gallery extends Element {
 				$this->set_attribute( "a-$index", 'data-pswp-src', $lightbox_image[0] );
 				$this->set_attribute( "a-$index", 'data-pswp-width', $lightbox_image[1] );
 				$this->set_attribute( "a-$index", 'data-pswp-height', $lightbox_image[2] );
-				$this->set_attribute( "a-$index", 'data-pswp-index', $index );
+				// Commented out to support same lightbox ID for multiple galleries on the same page (@since 1.12)
+				// $this->set_attribute( "a-$index", 'data-pswp-index', $index );
+
+				// Lightbox ID (@since 1.12)
+				if ( ! empty( $settings['lightboxId'] ) ) {
+					$this->set_attribute( "a-$index", 'data-pswp-id', esc_attr( $settings['lightboxId'] ) );
+				}
 
 				// Lightbox caption (@since 1.10)
 				$lightbox_caption = isset( $settings['lightboxCaption'] ) && $image_id ? wp_get_attachment_caption( $image_id ) : false;

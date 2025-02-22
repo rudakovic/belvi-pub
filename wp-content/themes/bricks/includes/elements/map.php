@@ -235,6 +235,7 @@ class Element_Map extends Element {
 			'group'       => 'settings',
 			'label'       => esc_html__( 'Map type', 'bricks' ),
 			'type'        => 'select',
+			'inline'      => true,
 			'options'     => [
 				'roadmap'   => esc_html__( 'Roadmap', 'bricks' ),
 				'satellite' => esc_html__( 'Satellite', 'bricks' ),
@@ -394,6 +395,7 @@ class Element_Map extends Element {
 			$this->set_attribute( 'iframe', 'loading', 'lazy' );
 			$this->set_attribute( 'iframe', 'src', 'https://maps.google.com/maps?q=' . urlencode( $address ) . '&t=' . $map_type . '&z=' . $zoom . '&output=embed&iwloc=near' );
 			$this->set_attribute( 'iframe', 'allowfullscreen' );
+			$this->set_attribute( 'iframe', 'title', esc_attr( $address ) ); // @since 1.12 (a11y)
 
 			$this->set_attribute( '_root', 'class', 'no-key' );
 

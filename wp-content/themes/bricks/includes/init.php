@@ -4,6 +4,7 @@ namespace Bricks;
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
 class Theme {
+	public $components;
 	public $capabilities;
 	public $database;
 	public $helpers;
@@ -84,6 +85,7 @@ class Theme {
 	public function init() {
 		Compatibility::register();
 
+		$this->components   = new Components();
 		$this->capabilities = new Capabilities();
 		$this->database     = new Database();
 		$this->helpers      = new Helpers();

@@ -28,7 +28,35 @@ Advanced Themer levels up your efficiency in building websites with Bricks thank
 Valid license key should be entered for the plugin to function and to receive automatic updates.
 
 
+
 == Changelog ==
+= 3.0.5 ( FEB 12, 2025 )
+* NEW: Animation Tab & Controls
+* IMPROVE: Page Transition: removed the JavaScript code - the code is 100% vanilla CSS.
+* IMPROVE: Page Transition: removed the target control in the page settings
+* IMPROVE: Page Transition: removed the wrapper control in the element settings
+* IMPROVE: Page Transition: removed the need to activate page transition in the page settings when an element contains a transition name
+* IMPROVE: Left tab shortcut: added new animation tab
+* IMPROVE: Filterable Structure: added HTML tags as filterable keywords
+* FIX: Typo in the global page transition keyframes declarations
+* FIX: Global Transitions wasn't applying on post with gutenberg blocks
+* FIX: Nested Elements: layout issue in categories with few elements
+* FIX: Nested Elements: convert to component wasn't working correctly
+* FIX: Style Overview: toggling off the structure list would mess with the layout
+* FIX: AI in SuperPowerCSS was mounting even if no API key was set in the Theme Settings
+
+= 3.0.4 ( FEB 7, 2025 )
+* IMPROVE: Class & Style indicators added to the Structure list within Style Overview
+* IMPROVE: Class Converter: new class indicators
+* IMPROVE: The breakpoint slider is now a separate tweak from the Responsive Helper
+* FIX: SVG applied to button icons weren't correctly saved when SVG was set as the default library for Icons
+* FIX: Filtered Structure Panel wasn't showing the collapsed elements
+* FIX: Elements generated from the right elements shortcuts could be unsync with the structure if the user previously clicked on an iframe element
+* FIX: Adding a component from the right elements shortcuts would fail to nest the component inside an active nestable element
+* FIX: Legacy Darkmode button had styling properties not applied correctly
+* FIX: Responsive Helper could stretch the bottom of the preview window
+* FIX: When "Lock Elements Order" was enabled, you could drag items inside unnestable elements within the structure
+
 = 3.0.3 ( FEB 4, 2025 )
 * FIX: Tag Manager could stay open and conflict with other active inputs on the page
 * FIX: Hide element was ignoring breakpoints/mobile-first approach.

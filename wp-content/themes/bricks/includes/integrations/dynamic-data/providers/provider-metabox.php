@@ -204,15 +204,14 @@ class Provider_Metabox extends Base {
 
 		// Process field type logic
 		else {
-			// Legacy from previous code (@pre 1.3.5)
-			if ( $context == 'text' ) {
-				$filters['separator'] = '<br>';
-			}
 
 			switch ( $field['type'] ) {
 				case 'file_input':
-					$filters['object_type'] = 'media';
-					$filters['link']        = true;
+					// Support :value filter to return IDs only
+					if ( ! isset( $filters['value'] ) ) {
+						$filters['object_type'] = 'media';
+						$filters['link']        = true;
+					}
 
 					$value = empty( $field['clone'] ) ? [ $value ] : $value;
 
@@ -224,8 +223,11 @@ class Provider_Metabox extends Base {
 				case 'file_upload':
 				case 'file_advanced':
 				case 'video':
-					$filters['object_type'] = 'media';
-					$filters['link']        = true;
+					// Support :value filter to return IDs only
+					if ( ! isset( $filters['value'] ) ) {
+						$filters['object_type'] = 'media';
+						$filters['link']        = true;
+					}
 
 					$value = ! empty( $value ) ? array_values( $value ) : [];
 
@@ -236,7 +238,10 @@ class Provider_Metabox extends Base {
 				case 'image_advanced':
 				case 'image_upload':
 				case 'single_image':
-					$filters['object_type'] = 'media';
+					// Support :value filter to return IDs only
+					if ( ! isset( $filters['value'] ) ) {
+						$filters['object_type'] = 'media';
+					}
 
 					// Empty field value should return empty array to avoid default post title in text context. @see $this->format_value_for_context()
 					$value = empty( $value ) ? [] : $value;
@@ -251,19 +256,23 @@ class Provider_Metabox extends Base {
 
 				case 'taxonomy_advanced':
 				case 'taxonomy':
-					$filters['object_type'] = 'term';
-					$filters['taxonomy']    = isset( $field['taxonomy'][0] ) ? $field['taxonomy'][0] : '';
+					// Support :value filter to return IDs only
+					if ( ! isset( $filters['value'] ) ) {
+						$filters['object_type'] = 'term';
+						$filters['taxonomy']    = $field['taxonomy'][0] ?? '';
 
-					// NOTE: Undocumented
-					$show_as_link = apply_filters( 'bricks/metabox/taxonomy/show_as_link', true, $value, $field );
+						// NOTE: Undocumented
+						$show_as_link = apply_filters( 'bricks/metabox/taxonomy/show_as_link', true, $value, $field );
 
-					if ( $show_as_link ) {
-						$filters['link'] = true;
+						if ( $show_as_link ) {
+							$filters['link'] = true;
+						}
 					}
 
 					$value = is_a( $value, 'WP_Term' ) || ! is_array( $value ) ? [ $value ] : $value;
 
-					$value = is_a( $value[0], 'WP_Term' ) ? wp_list_pluck( $value, 'term_id' ) : $value;
+					// Must check if $value is empty or not, maybe the $value is an empty array (@since 1.12)
+					$value = ! empty( $value ) && is_a( $value[0], 'WP_Term' ) ? wp_list_pluck( $value, 'term_id' ) : $value;
 					break;
 
 				case 'radio':
@@ -271,7 +280,8 @@ class Provider_Metabox extends Base {
 				case 'checkbox_list':
 				case 'select_advanced':
 				case 'autocomplete':
-					// STEP: Return raw value for element conditions (@since 1.5.7)
+				case 'button_group': // (@since 1.12)
+					// STEP: Return raw value for element conditions
 					if ( isset( $filters['value'] ) ) {
 						return is_array( $value ) ? implode( ', ', $value ) : $value;
 					}
@@ -511,8 +521,11 @@ class Provider_Metabox extends Base {
 					break;
 
 				case 'user':
-					$filters['object_type'] = 'user';
-					$filters['link']        = true;
+					// Support :value filter to return the IDs only
+					if ( ! isset( $filters['value'] ) ) {
+						$filters['object_type'] = 'user';
+						$filters['link']        = true;
+					}
 
 					break;
 			}
@@ -813,6 +826,7 @@ class Provider_Metabox extends Base {
 			'oembed'            => [ self::CONTEXT_TEXT, self::CONTEXT_LINK, self::CONTEXT_VIDEO, self::CONTEXT_MEDIA ],
 			'text_list'         => [ self::CONTEXT_TEXT ],
 			'wysiwyg'           => [ self::CONTEXT_TEXT ],
+			'button_group'      => [ self::CONTEXT_TEXT ], // (@since 1.12)
 
 			// WordPress
 			'post'              => [ self::CONTEXT_TEXT, self::CONTEXT_LINK ],
@@ -860,5 +874,56 @@ class Provider_Metabox extends Base {
 		$data['post'] = $post_object;
 
 		return $data;
+	}
+
+	/**
+	 * Retrieve all registered tags which are supported in WP_Query post__in parameter
+	 *
+	 * @since 1.12
+	 */
+	public function get_query_supported_tags() {
+		// NOTE: There is no field type named 'relationship' in Meta Box
+		// Meta Box will create 'post' field type for the related post type.
+		$field_types = [
+			'post',
+			'image_advanced',
+			'image',
+			'image_upload',
+			'single_image',
+		];
+
+		$supported_tags = [];
+
+		foreach ( $this->tags as $tag ) {
+			if ( ! isset( $tag['field'] ) ) {
+				continue;
+			}
+
+			if ( isset( $tag['deprecated'] ) ) {
+				continue;
+			}
+
+			$field           = $tag['field'] ?? [];
+			$field_type      = $field['type'] ?? '';
+			$is_relationship = isset( $field['relationship'] ) && $field['relationship'] === true;
+
+			if ( $is_relationship ) {
+				$field_type = 'relationship';
+			}
+
+			if ( in_array( $field_type, $field_types, true ) ) {
+				$supported_tags[] = [
+					'name'     => $tag['name'],
+					'type'     => $field_type,
+					'label'    => $tag['label'],
+					'params'   => [
+						'post__in',
+					],
+					'provider' => $tag['provider'],
+				];
+			}
+		}
+
+		return $supported_tags;
 	}
 }

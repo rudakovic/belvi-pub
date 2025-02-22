@@ -55,6 +55,12 @@ class Provider_Wp extends Base {
 				'group' => 'post'
 			],
 
+			// @since 1.12
+			'post_type'                  => [
+				'label' => esc_html__( 'Post type', 'bricks' ),
+				'group' => 'post'
+			],
+
 			'post_date'                  => [
 				'label' => esc_html__( 'Post date', 'bricks' ),
 				'group' => 'post',
@@ -281,19 +287,21 @@ class Provider_Wp extends Base {
 
 		// User Profile fields
 		$user_fields = [
-			'id'           => esc_html__( 'User ID', 'bricks' ),
-			'login'        => esc_html__( 'Username', 'bricks' ),
-			'email'        => esc_html__( 'Email', 'bricks' ),
-			'url'          => esc_html__( 'Website', 'bricks' ),
-			'author_url'   => esc_html__( 'User author URL', 'bricks' ),
-			'nicename'     => esc_html__( 'Nicename', 'bricks' ),
-			'nickname'     => esc_html__( 'Nickname', 'bricks' ),
-			'description'  => esc_html__( 'Bio', 'bricks' ),
-			'first_name'   => esc_html__( 'First name', 'bricks' ),
-			'last_name'    => esc_html__( 'Last name', 'bricks' ),
-			'display_name' => esc_html__( 'Display name', 'bricks' ),
-			'picture'      => esc_html__( 'Profile picture', 'bricks' ),
-			'meta'         => esc_html__( 'User meta - add key after :', 'bricks' ),
+			'id'              => esc_html__( 'User ID', 'bricks' ),
+			'login'           => esc_html__( 'Username', 'bricks' ),
+			'email'           => esc_html__( 'Email', 'bricks' ),
+			'url'             => esc_html__( 'Website', 'bricks' ),
+			'role'            => esc_html__( 'Role', 'bricks' ),
+			'registered_date' => esc_html__( 'User registered date', 'bricks' ),
+			'author_url'      => esc_html__( 'User author URL', 'bricks' ),
+			'nicename'        => esc_html__( 'Nicename', 'bricks' ),
+			'nickname'        => esc_html__( 'Nickname', 'bricks' ),
+			'description'     => esc_html__( 'Bio', 'bricks' ),
+			'first_name'      => esc_html__( 'First name', 'bricks' ),
+			'last_name'       => esc_html__( 'Last name', 'bricks' ),
+			'display_name'    => esc_html__( 'Display name', 'bricks' ),
+			'picture'         => esc_html__( 'Profile picture', 'bricks' ),
+			'meta'            => esc_html__( 'User meta - add key after :', 'bricks' ),
 		];
 
 		foreach ( $user_fields as $key => $label ) {
@@ -549,6 +557,10 @@ class Provider_Wp extends Base {
 				$value = Helpers::get_the_title( $post_id );
 				break;
 
+			case 'post_type':
+				$value = $post->post_type ?? get_post_type( $post_id );
+				break;
+
 			case 'read_more':
 				$value           = apply_filters( 'bricks/dynamic_data/read_more', __( 'Read more', 'bricks' ), $post );
 				$filters['link'] = true;
@@ -763,6 +775,8 @@ class Provider_Wp extends Base {
 			case 'wp_user_login':
 			case 'wp_user_email':
 			case 'wp_user_url':
+			case 'wp_user_role':
+			case 'wp_user_registered_date':
 			case 'wp_user_nicename':
 			case 'wp_user_nickname':
 			case 'wp_user_description':
@@ -772,7 +786,8 @@ class Provider_Wp extends Base {
 			case 'wp_user_picture':
 			case 'wp_user_meta':
 			case 'wp_user_author_url':
-				$user = Query::get_loop_object_type() == 'user' ? Query::get_loop_object() : wp_get_current_user();
+				$is_any_looping = Query::is_any_looping(); // Fix incorrect user context in nested loops (@since 1.12)
+				$user           = Query::get_loop_object_type( $is_any_looping ) == 'user' ? Query::get_loop_object( $is_any_looping ) : wp_get_current_user();
 
 				/**
 				 * AJAX popup user context when using the user dynamic data,
@@ -780,8 +795,13 @@ class Provider_Wp extends Base {
 				 *
 				 * @since 1.9.4
 				 */
-				if ( is_author() && ! Query::is_any_looping() && Api::is_current_endpoint( 'load_popup_content' ) ) {
+				if ( is_author() && ! $is_any_looping && Api::is_current_endpoint( 'load_popup_content' ) ) {
 					$user = get_user_by( 'id', get_queried_object_id() );
+				}
+
+				// Set object type to date if render is wp_user_registered_date (@since 1.12)
+				if ( $render === 'wp_user_registered_date' ) {
+					$filters['object_type'] = 'date';
 				}
 
 				$value = $this->get_user_tag_value( $tag, $user, $filters, $context );
@@ -1111,21 +1131,27 @@ class Provider_Wp extends Base {
 
 		// STEP: There are arguments to be parsed
 		if ( strpos( $callback, '(' ) !== false ) {
-			$parts = explode( '(', $callback );
+			// Pattern: matches1 captures the function name, matches2 captures everything inside the parentheses (@since 1.12)
+			$pattern = '/^([a-zA-Z0-9_]+)\((.*)\)$/';
+
+			// Retrieve the callback and arguments
+			preg_match( $pattern, $callback, $matches );
 
 			// STEP: Callback
-			$callback = trim( $parts[0] );
+			$callback = $matches[1] ?? '';
+
+			if ( empty( $callback ) ) {
+				return '';
+			}
 
 			// STEP: Arguments
-
-			// Remove spaces and bracket leftover
-			$parts[1] = rtrim( trim( $parts[1] ), ')' );
+			$args_string = $matches[2] ?? '';
 
 			// Parse arguments, e.g.: 'arg1,still arg1', 'arg2', arg3
-			if ( $parts[1] !== '' ) {
+			if ( $args_string !== '' ) {
 				$in_quote = false;
 
-				foreach ( str_split( $parts[1] ) as $char ) {
+				foreach ( str_split( $args_string ) as $char ) {
 					// Skip spaces outside of a single quote (@since 1.9.1)
 					if ( ! $in_quote && $char == ' ' ) {
 						continue;
@@ -1329,6 +1355,27 @@ class Provider_Wp extends Base {
 			case 'author_url':
 				$value = get_author_posts_url( $user->ID );
 				break;
+
+			// @since 1.12
+			case 'role':
+				// Always use the primary role
+				$value = $user->roles[0] ?? '';
+
+				if ( ! isset( $filters['value'] ) && $value !== '' ) {
+					// Get the role name
+					global $wp_roles;
+
+					$value = $wp_roles->roles[ $value ]['name'] ?? '';
+				}
+				break;
+
+			case 'registered_date':
+				$registered = $user->user_registered;
+				// Create a DateTime object from the user_registered date
+				$registered_date = new \DateTime( $registered );
+
+				$value = $registered_date->format( 'U' );
+				break;
 		}
 
 		// NOTE: Undocumented
@@ -1393,6 +1440,11 @@ class Provider_Wp extends Base {
 			case 'meta':
 			case 'website':
 				$key = $field_type;
+
+				if ( $key === 'user_pass' ) {
+					$value = '';
+					break;
+				}
 
 				// {author_bio} set key to description
 				if ( $field_type === 'bio' ) {
@@ -1484,9 +1536,9 @@ class Provider_Wp extends Base {
 		 * TODO NOTE: No longer in use (@since 1.9.6). As it causes builder query issue (#86bx6wxxm)
 		 * Should be tackled together with (#86bw6re4w)
 		 */
-		// if ( Helpers::is_bricks_preview() && ! Query::is_looping() ) {
-		// $object = Helpers::get_queried_object( $post_id );
-		// }
+		if ( Helpers::is_bricks_preview() && ! Query::is_looping() ) {
+			$object = Helpers::get_queried_object( $post_id );
+		}
 
 		// Not a WP_Term, leave
 		if ( ! $object || ! is_a( $object, 'WP_Term' ) ) {

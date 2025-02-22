@@ -253,10 +253,12 @@ class Filter_Active_Filters extends Filter_Element {
 
 		// Actual frontend, generate items for active filters
 		elseif ( ! empty( $active_filters ) ) {
+			$generated_urls = [];
 			foreach ( $active_filters as $filter_info ) {
 				$value         = $filter_info['value'];
 				$filter_id     = $filter_info['filter_id'];
 				$instance_name = $filter_info['instance_name'];
+				$url_param     = $filter_info['url_param'];
 
 				// Skip excluded filter IDs
 				if ( $exclude_ids && in_array( $filter_id, $exclude_ids ) ) {
@@ -265,6 +267,11 @@ class Filter_Active_Filters extends Filter_Element {
 
 				// Skip pagination filter (no need to show it in active filters)
 				if ( $instance_name === 'pagination' ) {
+					continue;
+				}
+
+				// Skip if the filter for this url param is already generated (@since 1.12)
+				if ( $url_param && in_array( $url_param, $generated_urls ) ) {
 					continue;
 				}
 
@@ -285,6 +292,9 @@ class Filter_Active_Filters extends Filter_Element {
 						$items[] = $item;
 					}
 				}
+
+				// Add url param to generated urls
+				$generated_urls[] = $url_param;
 			}
 		}
 
@@ -318,19 +328,21 @@ class Filter_Active_Filters extends Filter_Element {
 		echo "<ul {$this->render_attributes('_root')}>";
 
 		foreach ( $items as $k => $item ) {
-			$filter_id  = $item['filter_id'];
-			$value      = $item['value'];
-			$label      = $item['label'];
-			$title      = $item['title'] ?? '';
+			$filter_id  = esc_attr( $item['filter_id'] );
+			$value      = esc_attr( $item['value'] );
+			$label      = esc_attr( $item['label'] );
+			$title      = isset( $item['title'] ) ? esc_attr( $item['title'] ) : '';
 			$unique_key = $filter_id . '-' . $k;
+			$url_param  = isset( $item['url_param'] ) ? sanitize_key( $item['url_param'] ) : '';
 
 			$this->set_attribute( "item_button_$unique_key", 'aria-label', esc_html__( 'Clear filter', 'bricks' ) );
 			$this->set_attribute( "item_button_$unique_key", 'class', $button_classes );
 			$this->set_attribute( "item_button_$unique_key", 'data-filter-id', $filter_id );
 			$this->set_attribute( "item_button_$unique_key", 'data-filter-value', $value );
+			$this->set_attribute( "item_button_$unique_key", 'data-filter-url-param', $url_param );
 
 			if ( $title ) {
-				$this->set_attribute( "item_button_$unique_key", 'title', esc_attr( $title ) );
+				$this->set_attribute( "item_button_$unique_key", 'title', $item['title'] );
 			}
 
 			$button_inner = $label;
@@ -357,21 +369,7 @@ class Filter_Active_Filters extends Filter_Element {
 	private function get_item( $filter_id, $value, $choices, $filter_info ) {
 		$settings      = $filter_info['settings'];
 		$instance_name = $filter_info['instance_name'];
-
-		// Try to use filter_value_display from index table as default label
-		$data_matched_value = array_filter(
-			$choices,
-			function( $choice ) use ( $value ) {
-				return $choice['filter_value'] == $value;
-			}
-		);
-
-		// Get the first data matched value
-		$data_matched_value = array_shift( $data_matched_value );
-
-		// Set default label
-		$label = $data_matched_value['filter_value_display'] ?? $value;
-
+		$url_param     = $filter_info['url_param'];
 		$filter_action = $settings['filterAction'] ?? 'filter';
 
 		if ( $filter_action === 'filter' ) {
@@ -404,34 +402,54 @@ class Filter_Active_Filters extends Filter_Element {
 				}
 			}
 
-			// Handle other filter types with filterSource (Search filter has no filterSource)
-			elseif ( ! empty( $settings['filterSource'] ) ) {
-				switch ( $settings['filterSource'] ) {
-					case 'taxonomy':
-						// Use default filter_value_display as label
-						break;
+			// Handle other filter types
+			else {
 
-					case 'wpField':
-					case 'customField':
-						$label_mapping        = $settings['labelMapping'] ?? 'value';
-						$custom_label_mapping = $settings['customLabelMapping'] ?? [];
+				// Try to use filter_value_display from index table as default label
+				$data_matched_value = array_filter(
+					$choices,
+					function( $choice ) use ( $value ) {
+						// DB value must use urldecode first when comparing with user input value (@since 1.12)
+						return self::is_option_value_matched( esc_attr( urldecode( $choice['filter_value'] ) ), esc_attr( $value ) );
+					}
+				);
 
-						// Use custom label mapping if set
-						if ( $label_mapping === 'custom' && ! empty( $custom_label_mapping ) ) {
-							// Find the label from the custom_label_mapping array
-							$selected_label_mapping = array_filter(
-								$custom_label_mapping,
-								function( $mapping ) use ( $value ) {
-									return $mapping['optionMetaValue'] === $value;
-								}
-							);
+				// Get the first data matched value
+				$data_matched_value = array_shift( $data_matched_value );
+				// Set default label, use value from db, otherwise must be escaped as it's user input
+				$label = $data_matched_value['filter_value_display'] ?? esc_attr( $value );
+				// Always use value from db so frontend JS can deselect the correct option when clicking on the button (@since 1.12)
+				$value = $data_matched_value['filter_value'] ?? $value;
 
-							$selected_label_mapping = array_shift( $selected_label_mapping );
+				// Handle other filter types with filterSource (Search filter has no filterSource)
+				if ( ( ! empty( $settings['filterSource'] ) ) ) {
+					switch ( $settings['filterSource'] ) {
+						case 'taxonomy':
+							// Use default filter_value_display as label
+							break;
 
-							$label = $selected_label_mapping['optionLabel'] ?? $value;
-						}
+						case 'wpField':
+						case 'customField':
+							$label_mapping        = $settings['labelMapping'] ?? 'value';
+							$custom_label_mapping = $settings['customLabelMapping'] ?? [];
 
-						break;
+							// Use custom label mapping if set
+							if ( $label_mapping === 'custom' && ! empty( $custom_label_mapping ) ) {
+								// Find the label from the custom_label_mapping array
+								$selected_label_mapping = array_filter(
+									$custom_label_mapping,
+									function( $mapping ) use ( $value ) {
+										return self::is_option_value_matched( $mapping['optionMetaValue'], $value );
+									}
+								);
+
+								$selected_label_mapping = array_shift( $selected_label_mapping );
+
+								$label = $selected_label_mapping['optionLabel'] ?? $value;
+							}
+
+							break;
+					}
 				}
 			}
 		}
@@ -471,6 +489,7 @@ class Filter_Active_Filters extends Filter_Element {
 			'value'     => $value,
 			'label'     => $label,
 			'title'     => $title,
+			'url_param' => $url_param,
 		];
 	}
 }

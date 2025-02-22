@@ -20,12 +20,14 @@ class Field_Acf {
 		add_action( 'init', [ $this, 'init' ], 10002 );
 
 		add_action( 'bricks/query_filters/index_post/before', [ $this, 'maybe_register_dd_provider' ], 10 );
+		add_action( 'bricks/query_filters/index_user/before', [ $this, 'maybe_register_dd_provider' ], 10 );
 
 		add_filter( 'bricks/query_filters/index_args', [ $this, 'index_args' ], 10, 3 );
 
 		add_filter( 'bricks/query_filters/index_post/meta_exists', [ $this, 'index_post_meta_exists' ], 10, 4 );
+		add_filter( 'bricks/query_filters/index_user/meta_exists', [ $this, 'index_user_meta_exists' ], 10, 4 );
 
-		add_filter( 'bricks/query_filters/custom_field_index_rows', [ $this, 'custom_field_index_rows' ], 10, 4 );
+		add_filter( 'bricks/query_filters/custom_field_index_rows', [ $this, 'custom_field_index_rows' ], 10, 5 );
 
 		add_action( 'bricks/filter_element/before_set_data_source_from_custom_field', [ $this, 'modify_custom_field_choices' ] );
 
@@ -123,7 +125,7 @@ class Field_Acf {
 	 *
 	 * @return array
 	 */
-	public function custom_field_index_rows( $rows, $post_id, $meta_key, $provider ) {
+	public function custom_field_index_rows( $rows, $object_id, $meta_key, $provider, $object_type ) {
 		if ( $provider !== $this->provider_key ) {
 			return $rows;
 		}
@@ -131,11 +133,24 @@ class Field_Acf {
 		// $meta_key is a dynamic tag
 		$actual_meta_key = $this->get_meta_key_by_dd_tag( $meta_key );
 
+		$get_field_object_id = $object_id;
+
+		if ( in_array( $object_type, [ 'term', 'user' ], true ) ) {
+			$get_field_object_id = $object_type . '_' . $object_id;
+		}
+
 		// Get field object via ACF function when generating index rows
-		$acf_field              = get_field_object( $actual_meta_key, $post_id );
+		$acf_field = get_field_object( $actual_meta_key, $get_field_object_id );
+
+		// Return if the field is not found
+		if ( ! $acf_field ) {
+			return $rows;
+		}
+
 		$acf_value              = $acf_field['value'] ?? false;
 		$field_type             = $acf_field['type'] ?? 'text';
 		$acf_field['brx_label'] = []; // Hold custom label
+		$set_value_id           = false;
 
 		switch ( $field_type ) {
 			case 'select':
@@ -184,7 +199,8 @@ class Field_Acf {
 					}
 				}
 
-				$acf_value = $temp_value;
+				$acf_value    = $temp_value;
+				$set_value_id = true;
 				break;
 
 			case 'taxonomy':
@@ -211,7 +227,26 @@ class Field_Acf {
 					}
 				}
 
-				$acf_value = $temp_value;
+				$acf_value    = $temp_value;
+				$set_value_id = true;
+
+				break;
+
+			case 'user':
+				// ACF allows for single or multiple users
+				$temp_value    = $acf_field['multiple'] ? $acf_value : [ $acf_value ];
+				$return_format = $acf_field['return_format'] ?? false;
+				$temp_value    = $return_format === 'id' ? $temp_value : wp_list_pluck( $temp_value, 'ID' );
+
+				foreach ( $temp_value as $user_id ) {
+					$user = get_user_by( 'ID', $user_id );
+					if ( $user ) {
+						$acf_field['brx_label'][ $user_id ] = $user->display_name ?? $user->nickname;
+					}
+				}
+
+				$acf_value    = $temp_value;
+				$set_value_id = true;
 
 				break;
 
@@ -264,11 +299,11 @@ class Field_Acf {
 		foreach ( $final_values as $value ) {
 			$rows[] = [
 				'filter_id'            => '',
-				'object_id'            => $post_id,
-				'object_type'          => 'post',
+				'object_id'            => $object_id,
+				'object_type'          => $object_type,
 				'filter_value'         => $value,
 				'filter_value_display' => $get_label( $value, $acf_field ),
-				'filter_value_id'      => 0,
+				'filter_value_id'      => $set_value_id ? $value : 0,
 				'filter_value_parent'  => 0,
 			];
 		}
@@ -295,6 +330,24 @@ class Field_Acf {
 	}
 
 	/**
+	 * Decide whether to index the user based on the meta key
+	 * Index the user if the meta key exists
+	 *
+	 * @return bool
+	 */
+	public function index_user_meta_exists( $index, $user_id, $meta_key, $provider ) {
+		if ( $provider !== $this->provider_key ) {
+			return $index;
+		}
+
+		// Get the actual meta key
+		$actual_meta_key = $this->get_meta_key_by_dd_tag( $meta_key );
+
+		// Check if the meta key exists
+		return metadata_exists( 'user', $user_id, $actual_meta_key );
+	}
+
+	/**
 	 * Modify the meta query for custom fields based on the field type
 	 *
 	 * @return array
@@ -311,8 +364,8 @@ class Field_Acf {
 		$instance_name    = $filter['instance_name'];
 		$combine_logic    = $settings['filterMultiLogic'] ?? 'OR';
 
-		if ( isset( $settings['filterCompareOperator'] ) ) {
-			$compare_operator = $settings['filterCompareOperator'];
+		if ( isset( $settings['fieldCompareOperator'] ) ) {
+			$compare_operator = $settings['fieldCompareOperator'];
 		} else {
 			// Default compare operator for filter-select and filter-radio is =, for others is IN
 			$compare_operator = in_array( $instance_name, [ 'filter-select', 'filter-radio' ], true ) ? '=' : 'IN';
@@ -466,9 +519,11 @@ class Field_Acf {
 				]
 			);
 
-			$acf_choices = [];
-			foreach ( $terms as $term ) {
-				$acf_choices[ $term->term_id ] = $term->name;
+			if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+				$acf_choices = [];
+				foreach ( $terms as $term ) {
+					$acf_choices[ $term->term_id ] = $term->name;
+				}
 			}
 		}
 
@@ -484,8 +539,7 @@ class Field_Acf {
 			$matched_choice = array_filter(
 				$ori_choices,
 				function( $choice ) use ( $acf_value ) {
-					// Compare in string format
-					return isset( $choice['filter_value'] ) && (string) $choice['filter_value'] == (string) $acf_value;
+					return isset( $choice['filter_value'] ) && \Bricks\Filter_Element::is_option_value_matched( $choice['filter_value'], $acf_value );
 				}
 			);
 

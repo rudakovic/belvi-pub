@@ -361,9 +361,17 @@ class Setup {
 
 		// Load frontend CSS files OR inline styles (default: inline style)
 		if ( Database::get_setting( 'cssLoading' ) !== 'file' || bricks_is_builder() ) {
-			wp_enqueue_style( 'bricks-frontend', BRICKS_URL_ASSETS . 'css/frontend.min.css', [], filemtime( BRICKS_PATH_ASSETS . 'css/frontend.min.css' ) );
+			if ( Database::get_setting( 'bricksCascadeLayer' ) ) { // @since 1.12
+				wp_enqueue_style( 'bricks-frontend', BRICKS_URL_ASSETS . 'css/frontend-layer.min.css', [], filemtime( BRICKS_PATH_ASSETS . 'css/frontend-layer.min.css' ) );
+			} else {
+				wp_enqueue_style( 'bricks-frontend', BRICKS_URL_ASSETS . 'css/frontend.min.css', [], filemtime( BRICKS_PATH_ASSETS . 'css/frontend.min.css' ) );
+			}
 		} else {
-			wp_enqueue_style( 'bricks-frontend', BRICKS_URL_ASSETS . 'css/frontend-light.min.css', [], filemtime( BRICKS_PATH_ASSETS . 'css/frontend-light.min.css' ) );
+			if ( Database::get_setting( 'bricksCascadeLayer' ) ) { // @since 1.12
+				wp_enqueue_style( 'bricks-frontend', BRICKS_URL_ASSETS . 'css/frontend-light-layer.min.css', [], filemtime( BRICKS_PATH_ASSETS . 'css/frontend-light-layer.min.css' ) );
+			} else {
+				wp_enqueue_style( 'bricks-frontend', BRICKS_URL_ASSETS . 'css/frontend-light.min.css', [], filemtime( BRICKS_PATH_ASSETS . 'css/frontend-light.min.css' ) );
+			}
 		}
 
 		if ( is_rtl() ) {
@@ -377,9 +385,9 @@ class Setup {
 		// Contains common JS libraries & Bricks-specific frontend.js init scripts
 		wp_enqueue_script( 'bricks-scripts', BRICKS_URL_ASSETS . 'js/bricks.min.js', [], filemtime( BRICKS_PATH_ASSETS . 'js/bricks.min.js' ), true );
 
-		// Enqueue query filters JS (@since 1.9.6)
+		// Register Query Filters JS file, but only enqueue when needed (@since 1.12)
 		if ( Helpers::enabled_query_filters() ) {
-			wp_enqueue_script( 'bricks-filters', BRICKS_URL_ASSETS . 'js/filters.min.js', [ 'bricks-scripts' ], filemtime( BRICKS_PATH_ASSETS . 'js/filters.min.js' ), true );
+			wp_register_script( 'bricks-filters', BRICKS_URL_ASSETS . 'js/filters.min.js', [ 'bricks-scripts' ], filemtime( BRICKS_PATH_ASSETS . 'js/filters.min.js' ), true );
 		}
 
 		// Element Form (setting: enableRecaptcha)
@@ -444,10 +452,17 @@ class Setup {
 		wp_register_style( 'bricks-ajax-loader', BRICKS_URL_ASSETS . 'css/libs/loading-animation.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/loading-animation.min.css' ) );
 
 		// Icon fonts
-		wp_register_style( 'bricks-font-awesome-6', BRICKS_URL_ASSETS . 'css/libs/font-awesome-6.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/font-awesome-6.min.css' ) );
-		wp_register_style( 'bricks-font-awesome-6-brands', BRICKS_URL_ASSETS . 'css/libs/font-awesome-6-brands.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/font-awesome-6-brands.min.css' ) );
-		wp_register_style( 'bricks-ionicons', BRICKS_URL_ASSETS . 'css/libs/ionicons.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/ionicons.min.css' ) );
-		wp_register_style( 'bricks-themify-icons', BRICKS_URL_ASSETS . 'css/libs/themify-icons.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/themify-icons.min.css' ) );
+		if ( Database::get_setting( 'bricksCascadeLayer' ) ) { // @since 1.12
+			wp_register_style( 'bricks-font-awesome-6', BRICKS_URL_ASSETS . 'css/libs/font-awesome-6-layer.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/font-awesome-6-layer.min.css' ) );
+			wp_register_style( 'bricks-font-awesome-6-brands', BRICKS_URL_ASSETS . 'css/libs/font-awesome-6-brands-layer.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/font-awesome-6-brands-layer.min.css' ) );
+			wp_register_style( 'bricks-ionicons', BRICKS_URL_ASSETS . 'css/libs/ionicons-layer.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/ionicons-layer.min.css' ) );
+			wp_register_style( 'bricks-themify-icons', BRICKS_URL_ASSETS . 'css/libs/themify-icons-layer.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/themify-icons-layer.min.css' ) );
+		} else {
+			wp_register_style( 'bricks-font-awesome-6', BRICKS_URL_ASSETS . 'css/libs/font-awesome-6.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/font-awesome-6.min.css' ) );
+			wp_register_style( 'bricks-font-awesome-6-brands', BRICKS_URL_ASSETS . 'css/libs/font-awesome-6-brands.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/font-awesome-6-brands.min.css' ) );
+			wp_register_style( 'bricks-ionicons', BRICKS_URL_ASSETS . 'css/libs/ionicons.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/ionicons.min.css' ) );
+			wp_register_style( 'bricks-themify-icons', BRICKS_URL_ASSETS . 'css/libs/themify-icons.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/libs/themify-icons.min.css' ) );
+		}
 
 		if ( is_404() ) {
 			wp_enqueue_style( 'bricks-404', BRICKS_URL_ASSETS . 'css/frontend/404.min.css', [ 'bricks-frontend' ], filemtime( BRICKS_PATH_ASSETS . 'css/frontend/404.min.css' ) );
@@ -583,85 +598,28 @@ class Setup {
 
 		// WooCommerce (@since 1.11.1)
 		if ( WooCommerce::is_woocommerce_active() ) {
-			$wc_pages = [
-				'cart'     => [
-					'page_id'   => wc_get_page_id( 'cart' ),
-					'templates' => [
-						'wc_cart'       => false,
-						'wc_cart_empty' => false,
-					],
-				],
-				'checkout' => [
-					'page_id'   => wc_get_page_id( 'checkout' ),
-					'templates' => [
-						'wc_form_checkout' => false,
-						'wc_form_pay'      => false,
-						'wc_thankyou'      => false,
-						'wc_order_receipt' => false,
-					],
-				],
-				'account'  => [
-					'page_id'   => wc_get_page_id( 'myaccount' ),
-					'templates' => [
-						'wc_account_dashboard'          => false,
-						'wc_account_orders'             => false,
-						'wc_account_view_order'         => false,
-						'wc_account_downloads'          => false,
-						'wc_account_addresses'          => false,
-						'wc_account_form_edit_address'  => false,
-						'wc_account_form_edit_account'  => false,
-						'wc_account_form_login'         => false,
-						'wc_account_form_lost_password' => false,
-						'wc_account_form_lost_password_confirmation' => false,
-						'wc_account_reset_password'     => false,
-					],
-				],
-			];
+			$woo_templates    = WooCommerce::get_woo_templates();
+			$active_templates = WooCommerce::get_active_templates_for_current_page(); // @since 1.12
 
-			$woo_templates = Woocommerce::get_woo_templates();
-			// Detect WooCommerce templates
-			foreach ( $wc_pages as $wc_page => $wc ) {
-				// Skip if current page is not same as WooCommerce page
-				if ( $post_id !== $wc['page_id'] ) {
-					// Unset templates
-					unset( $wc_pages[ $wc_page ] );
+			// Add WooCommerce templates to admin bar
+			foreach ( $active_templates as $template => $template_id ) {
+				if ( ! $template_id ) {
 					continue;
 				}
 
-				// Update template IDs
-				foreach ( $wc['templates'] as $template => $temp_id ) {
-					$template_id = Woocommerce::get_template_data_by_type( $template, false );
+				$menu_title = $woo_templates[ $template ] ?? 'Unknown';
 
-					if ( $template_id ) {
-						$wc['templates'][ $template ] = $template_id;
-					}
-				}
-
-				// Update array
-				$wc_pages[ $wc_page ] = $wc;
-			}
-
-			// Add WooCommerce templates to admin bar
-			foreach ( $wc_pages as $wc_page => $wc ) {
-				foreach ( $wc['templates'] as $template => $temp_id ) {
-					if ( ! $temp_id ) {
-						continue;
-					}
-
-					$menu_title = $woo_templates[ $template ] ?? 'Unknown';
-
-					$wp_admin_bar->add_menu(
-						[
-							'parent' => 'edit_with_bricks',
-							'id'     => 'edit_with_bricks_' . $template,
-							'title'  => esc_html__( 'Edit', 'bricks' ) . ": $menu_title (WooCommerce)",
-							'href'   => Helpers::get_builder_edit_link( $temp_id ),
-							'meta'   => [
-								'class' => 'brx-woocommerce',
-							],
-						]
-					);
-				}
+				$wp_admin_bar->add_menu(
+					[
+						'parent' => 'edit_with_bricks',
+						'id'     => 'edit_with_bricks_' . $template,
+						'title'  => esc_html__( 'Edit', 'bricks' ) . ": $menu_title (WooCommerce)",
+						'href'   => Helpers::get_builder_edit_link( $template_id ),
+						'meta'   => [
+							'class' => 'brx-woocommerce',
+						],
+					]
+				);
 			}
 		}
 
@@ -700,32 +658,45 @@ class Setup {
 		// STEP: Editor mode
 
 		// Return: Editing Bricks template
-		if ( get_post_type( get_the_ID() ) === BRICKS_DB_TEMPLATE_SLUG ) {
+		if ( get_post_type( $post_id ) === BRICKS_DB_TEMPLATE_SLUG ) {
 			return;
 		}
 
-		$edit_post_link = get_edit_post_link( get_the_ID() );
+		$edit_post_link = get_edit_post_link( $post_id );
 
-		// Return: Not an editable post (@since 1.9)
+		// Return: Not an editable post
 		if ( ! $edit_post_link ) {
 			return;
 		}
 
-		$editor_mode = Helpers::get_editor_mode( get_the_ID() );
+		$editor_mode = Helpers::get_editor_mode( $post_id );
 
 		if ( ! empty( $_GET['editor_mode'] ) ) {
 			$editor_mode = sanitize_text_field( $_GET['editor_mode'] );
 		}
 
-		$render_with_bricks    = esc_html__( 'Render with Bricks', 'bricks' );
-		$render_with_wordpress = esc_html__( 'Render with WordPress', 'bricks' );
+		// Bricks mode selected, but no Bricks data exists: Show "Render with (@since 1.12)
+		Database::set_active_templates();
+		if (
+			$editor_mode === 'bricks' &&
+			! Helpers::get_bricks_data( $post_id, 'content' )
+			&& ( Database::$active_templates['content'] == 0 || Database::$active_templates['content'] == $post_id )
+		) {
+			$editor_mode = 'wordpress';
+		}
+
+		$rendered_with_bricks    = esc_html__( 'Rendered with Bricks', 'bricks' );
+		$rendered_with_wordpress = esc_html__( 'Rendered with WordPress', 'bricks' );
 
 		$wp_admin_bar->add_menu(
 			[
 				'id'    => 'editor_mode',
-				'title' => $editor_mode === 'wordpress' ? $render_with_wordpress : $render_with_bricks,
+				'title' => $editor_mode === 'wordpress' ? $rendered_with_wordpress : $rendered_with_bricks,
 			]
 		);
+
+		$render_with_bricks    = esc_html__( 'Render with Bricks', 'bricks' );
+		$render_with_wordpress = esc_html__( 'Render with WordPress', 'bricks' );
 
 		if ( $editor_mode === 'wordpress' ) {
 			$wp_admin_bar->add_menu(
@@ -1090,6 +1061,7 @@ class Setup {
 				'meta_value'     => esc_html( 'Meta value', 'bricks' ),
 				'meta_value_num' => esc_html( 'Meta numeric value', 'bricks' ),
 				'post__in'       => esc_html( 'Post include order', 'bricks' ),
+				'_default'       => esc_html( 'Default', 'bricks' ), // Use WP default order (@since 1.12)
 			];
 
 			$control_options['termsOrderBy'] = [
@@ -1101,7 +1073,8 @@ class Setup {
 				'meta_value'     => esc_html( 'Meta value', 'bricks' ), // (@since 1.11.1)
 				'meta_value_num' => esc_html( 'Meta numeric value', 'bricks' ), // (@since 1.11.1)
 				'count'          => esc_html( 'Count', 'bricks' ),
-				'include'        => esc_html( 'Include list', 'bricks' )
+				'include'        => esc_html( 'Include list', 'bricks' ),
+				'_default'       => esc_html( 'Default', 'bricks' ), // Use WP default order (@since 1.12)
 			];
 
 			$control_options['usersOrderBy'] = [
@@ -1119,6 +1092,7 @@ class Setup {
 				'meta_value'     => esc_html( 'Meta value', 'bricks' ),
 				'meta_value_num' => esc_html( 'Meta numeric value', 'bricks' ),
 				// 'post__in' => esc_html( 'Post include order', 'bricks' ),
+				'_default'       => esc_html( 'Default', 'bricks' ), // Use WP default order (@since 1.12)
 			];
 
 			$control_options['queryCompare'] = [
@@ -1368,8 +1342,8 @@ class Setup {
 				$taxonomy === 'link_category' ||
 				$taxonomy === 'post_format' ||
 				$taxonomy === 'wp_theme' ||
-				$taxonomy === BRICKS_DB_TEMPLATE_TAX_TAG ||
-				$taxonomy === BRICKS_DB_TEMPLATE_TAX_BUNDLE ||
+				// $taxonomy === BRICKS_DB_TEMPLATE_TAX_TAG || // Don't exclude, might be needed in query filters (@since 1.12)
+				// $taxonomy === BRICKS_DB_TEMPLATE_TAX_BUNDLE || // Don't exclude, might be needed in query filters (@since 1.12)
 				empty( $tax->label ) // Some taxonomies have no label (e.g. Polylang internal taxonomies)
 				) {
 				continue;

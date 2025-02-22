@@ -385,14 +385,107 @@ class Filter_Range extends Filter_Element {
 
 		$this->prepare_sources();
 
-		/**
-		 * Get min/max value from $this->choices_source
-		 */
-		if ( ! empty( $this->choices_source ) ) {
-			foreach ( $this->choices_source as $source ) {
+		$query_id             = $settings['filterQueryId'] ?? false;
+		$active_filters       = Query_Filters::$active_filters[ $query_id ] ?? [];
+		$this_active_filter   = false;
+		$other_active_filters = [];
+		$source_for_min_max   = '';
+		$filtered_source      = $this->filtered_source ?? [];
+		$choices_source       = $this->choices_source ?? [];
+		$count_source         = [];
+
+		// Similar logic with set_options_with_count(), additional queries generated (@since 1.12)
+		if ( ! empty( $active_filters ) ) {
+			// Get all active filters that will affect the count
+			$filters_affecting_count = array_filter(
+				$active_filters,
+				function( $filter ) {
+					return isset( $filter['query_type'] ) && $filter['query_type'] !== 'sort' && $filter['query_type'] !== 'pagination';
+				}
+			);
+
+			// Assign this_active_filter and other_active_filters from filters_affecting_count
+			foreach ( $filters_affecting_count as $filter ) {
+				if ( $filter['filter_id'] === $this->id ) {
+					$this_active_filter = $filter;
+				}
+				else {
+					$other_active_filters[] = $filter;
+				}
+			}
+
+			// Get all the query_vars from other active filters
+			$count_query_vars = [];
+			foreach ( $other_active_filters as $filter ) {
+				$filter_query_type = $filter['query_type'] ?? 'default';
+				switch ( $filter_query_type ) {
+					case 'wp_query':
+						$count_query_vars = Query::merge_query_vars( $count_query_vars, $filter['query_vars'] );
+						break;
+
+					case 'meta_query':
+						$count_query_vars = Query::merge_query_vars(
+							$count_query_vars,
+							[
+								'meta_query' => [ $filter['query_vars'] ],
+							],
+							true
+						); // Third parameter is true to merge meta_query correctly if not AJAX call (@since 1.11.1)
+
+						break;
+
+					case 'tax_query':
+						$count_query_vars = Query::merge_query_vars(
+							$count_query_vars,
+							[
+								'tax_query' => [ $filter['query_vars'] ],
+							]
+						);
+
+						break;
+
+					case 'default':
+						// Do nothing
+						break;
+				}
+			}
+
+			$disable_query_merge = $this->query_settings['disable_query_merge'] ?? false;
+			$page_filters        = Query_filters::$page_filters ?? [];
+			// Get query_vars from page filters if disable_query_merge is false and page filters should be applied
+			if ( ! $disable_query_merge && Query_Filters::should_apply_page_filters( $count_query_vars ) ) {
+				$count_query_vars     = Query::merge_query_vars( $count_query_vars, Query_Filters::generate_query_vars_from_page_filters() );
+				$other_active_filters = array_merge( $other_active_filters, $page_filters );
+			}
+
+			// Get the count source
+			if ( count( $count_query_vars ) > 0 ) {
+				$count_source = Query_Filters::get_filtered_data_from_index( $this->id, Query_Filters::get_filter_object_ids( $query_id, 'original', $count_query_vars ) );
+			}
+		}
+
+		// This filter is active and there are other active filters, use filtered_source
+		if ( $this_active_filter !== false && count( $other_active_filters ) > 0 ) {
+			$source_for_min_max = 'count_source';
+		}
+
+		// This filter is not active and there are other active filters, use filtered source
+		elseif ( count( $other_active_filters ) > 0 ) {
+			$source_for_min_max = 'filtered_source';
+		}
+
+		// No other active filters
+		else {
+			$source_for_min_max = 'choices_source';
+		}
+
+		// Get min/max value from the correct source
+		if ( ! empty( $$source_for_min_max ) ) {
+			foreach ( $$source_for_min_max as $source ) {
 				$choice_value = $source['filter_value'] ?? false;
 
-				if ( ! $choice_value ) {
+				// Value could be zero, so we need to check if it's false
+				if ( $choice_value === false ) {
 					continue;
 				}
 
@@ -416,13 +509,45 @@ class Filter_Range extends Filter_Element {
 			}
 		}
 
+		$ori_min_value = null;
+		$ori_max_value = null;
+		// Always get original min/max value from choices_source for frontend reset logic (@since 1.12)
+		if ( ! empty( $choices_source ) ) {
+			foreach ( $choices_source as $source ) {
+				$choice_value = $source['filter_value'] ?? false;
+
+				// Value could be zero, so we need to check if it's false
+				if ( $choice_value === false ) {
+					continue;
+				}
+
+				// Force to convert to float
+				$choice_value = (float) $choice_value;
+
+				// Set min/max value, set as Integer, we only support Integer
+				if ( $ori_min_value === null || $choice_value < $ori_min_value ) {
+					// If the value is 1.9, it will be converted to 1
+					$choice_value = floor( $choice_value );
+					// Convert to integer - Set min value
+					$ori_min_value = (int) $choice_value;
+				}
+
+				if ( $ori_max_value === null || $choice_value > $ori_max_value ) {
+					// If the value is 1.9, it will be converted to 2
+					$choice_value = ceil( $choice_value );
+					// Convert to integer - Set max value
+					$ori_max_value = (int) $choice_value;
+				}
+			}
+		}
+
 		// Insert filter settings as data-brx-filter attribute
 		$filter_settings                 = $this->get_common_filter_settings();
 		$filter_settings['filterSource'] = $settings['filterSource'];
 
 		// min, max, step values
-		$filter_settings['min']  = $this->min_value ?? 0;
-		$filter_settings['max']  = $this->max_value ?? 100;
+		$filter_settings['min']  = $ori_min_value ?? 0; // For frontend Reset logic
+		$filter_settings['max']  = $ori_max_value ?? 100; // For frontend Reset logic
 		$filter_settings['step'] = $settings['step'] ?? 1;
 
 		// thousand separator
@@ -485,6 +610,16 @@ class Filter_Range extends Filter_Element {
 			}
 		}
 
+		// Ensure current_min is not less than min_value
+		if ( $this->current_min < $this->min_value ) {
+			$this->current_min = $this->min_value;
+		}
+
+		// Ensure current_max is not greater than max_value
+		if ( $this->current_max > $this->max_value ) {
+			$this->current_max = $this->max_value;
+		}
+
 		echo "<div {$this->render_attributes('_root')}>";
 
 		// Range slider UI
@@ -508,7 +643,7 @@ class Filter_Range extends Filter_Element {
 			return;
 		}
 
-		// Adjust slider-wrap width and left position (@since 1.11)
+		// Adjust slider-wrap width and left/right position (@since 1.11)
 		$min_value = $this->current_min ?? 0;
 		$max_value = $this->current_max ?? 100;
 
@@ -522,7 +657,6 @@ class Filter_Range extends Filter_Element {
 		}
 
 		// @since 1.11.1: If it's RTL, we need to offset from left
-
 		$style = 'width:' . $width . '%; ' . ( is_rtl() ? 'right:' : 'left:' ) . $min_percent . '%;';
 
 		// Hide the track if the width is less than 2%. Otherwise, there might be a small line visible

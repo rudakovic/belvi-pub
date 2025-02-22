@@ -899,7 +899,27 @@ function bricksWooAddToCart(element, type) {
 			) {
 				continue
 			}
-			data[pair[0]] = pair[1]
+
+			// Ensure all inputs are added to data, some input might be checkboxes that support multiple values with same name
+			if (data[pair[0]] === undefined) {
+				data[pair[0]] = pair[1]
+			} else {
+				// Same key already exists
+
+				// Convert to array if not already
+				if (!Array.isArray(data[pair[0]])) {
+					data[pair[0]] = [data[pair[0]]]
+				}
+
+				// Check if the value is same as the existing value
+				if (Array.isArray(data[pair[0]]) && data[pair[0]].includes(pair[1])) {
+					// Skip
+					continue
+				}
+
+				// Add to array
+				data[pair[0]].push(pair[1])
+			}
 		}
 	} else {
 		// Looping product - Only support simple products & product variations

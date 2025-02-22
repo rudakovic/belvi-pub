@@ -57,212 +57,221 @@ class Element_Tabs_Nested extends Element {
 			'placeholder' => 'Click',
 		];
 
-		// TITLE
-
-		$this->controls['titleWidth'] = [
-			'group'       => 'title',
-			'label'       => esc_html__( 'Width', 'bricks' ),
-			'type'        => 'number',
-			'units'       => true,
-			'css'         => [
-				[
-					'selector' => '> .tab-menu .tab-title',
-					'property' => 'width',
-				],
-			],
-			'placeholder' => 'auto',
+		// Expand item on page load (@since 1.12)
+		$this->controls['openTab'] = [
+			'label'       => esc_html__( 'Open tab index', 'bricks' ),
+			'type'        => 'text',
+			'description' => esc_html__( 'Index of the item to expand on page load, start at 0.', 'bricks' ),
+			'inline'      => true,
+			'placeholder' => '0',
 		];
 
-		$this->controls['titleMargin'] = [
-			'group' => 'title',
-			'label' => esc_html__( 'Margin', 'bricks' ),
-			'type'  => 'spacing',
-			'css'   => [
-				[
-					'property' => 'margin',
-					'selector' => '> .tab-menu .tab-title',
+			// TITLE
+
+			$this->controls['titleWidth'] = [
+				'group'       => 'title',
+				'label'       => esc_html__( 'Width', 'bricks' ),
+				'type'        => 'number',
+				'units'       => true,
+				'css'         => [
+					[
+						'selector' => '> .tab-menu .tab-title',
+						'property' => 'width',
+					],
 				],
-			],
-		];
+				'placeholder' => 'auto',
+			];
 
-		$this->controls['titlePadding'] = [
-			'group'   => 'title',
-			'label'   => esc_html__( 'Padding', 'bricks' ),
-			'type'    => 'spacing',
-			'css'     => [
-				[
-					'property' => 'padding',
-					'selector' => '> .tab-menu .tab-title',
+			$this->controls['titleMargin'] = [
+				'group' => 'title',
+				'label' => esc_html__( 'Margin', 'bricks' ),
+				'type'  => 'spacing',
+				'css'   => [
+					[
+						'property' => 'margin',
+						'selector' => '> .tab-menu .tab-title',
+					],
 				],
-			],
-			'default' => [
-				'top'    => 20,
-				'right'  => 20,
-				'bottom' => 20,
-				'left'   => 20,
-			],
-		];
+			];
 
-		$this->controls['titleBackgroundColor'] = [
-			'group' => 'title',
-			'label' => esc_html__( 'Background', 'bricks' ),
-			'type'  => 'color',
-			'css'   => [
-				[
-					'property' => 'background-color',
-					'selector' => '> .tab-menu .tab-title',
+			$this->controls['titlePadding'] = [
+				'group'   => 'title',
+				'label'   => esc_html__( 'Padding', 'bricks' ),
+				'type'    => 'spacing',
+				'css'     => [
+					[
+						'property' => 'padding',
+						'selector' => '> .tab-menu .tab-title',
+					],
 				],
-			],
-		];
-
-		$this->controls['titleBorder'] = [
-			'group' => 'title',
-			'label' => esc_html__( 'Border', 'bricks' ),
-			'type'  => 'border',
-			'css'   => [
-				[
-					'property' => 'border',
-					'selector' => '> .tab-menu .tab-title',
+				'default' => [
+					'top'    => 20,
+					'right'  => 20,
+					'bottom' => 20,
+					'left'   => 20,
 				],
-			],
-		];
+			];
 
-		$this->controls['titleTypography'] = [
-			'group' => 'title',
-			'label' => esc_html__( 'Typography', 'bricks' ),
-			'type'  => 'typography',
-			'css'   => [
-				[
-					'property' => 'font',
-					'selector' => '> .tab-menu .tab-title',
+			$this->controls['titleBackgroundColor'] = [
+				'group' => 'title',
+				'label' => esc_html__( 'Background', 'bricks' ),
+				'type'  => 'color',
+				'css'   => [
+					[
+						'property' => 'background-color',
+						'selector' => '> .tab-menu .tab-title',
+					],
 				],
-			],
-		];
+			];
 
-		// ACTIVE TITLE
-
-		$this->controls['titleActiveSeparator'] = [
-			'group'      => 'title',
-			'label'      => esc_html__( 'Active', 'bricks' ),
-			'type'       => 'separator',
-			'fullAccess' => true,
-		];
-
-		$this->controls['titleActiveBackgroundColor'] = [
-			'group'   => 'title',
-			'label'   => esc_html__( 'Background color', 'bricks' ),
-			'type'    => 'color',
-			'css'     => [
-				[
-					'property' => 'background-color',
-					'selector' => '> .tab-menu .tab-title.brx-open',
+			$this->controls['titleBorder'] = [
+				'group' => 'title',
+				'label' => esc_html__( 'Border', 'bricks' ),
+				'type'  => 'border',
+				'css'   => [
+					[
+						'property' => 'border',
+						'selector' => '> .tab-menu .tab-title',
+					],
 				],
-			],
-			'default' => [
-				'hex' => '#dddedf',
-			],
-		];
+			];
 
-		$this->controls['titleActiveBorder'] = [
-			'group' => 'title',
-			'label' => esc_html__( 'Border', 'bricks' ),
-			'type'  => 'border',
-			'css'   => [
-				[
-					'property' => 'border',
-					'selector' => '> .tab-menu .tab-title.brx-open',
+			$this->controls['titleTypography'] = [
+				'group' => 'title',
+				'label' => esc_html__( 'Typography', 'bricks' ),
+				'type'  => 'typography',
+				'css'   => [
+					[
+						'property' => 'font',
+						'selector' => '> .tab-menu .tab-title',
+					],
 				],
-			],
-		];
+			];
 
-		$this->controls['titleActiveTypography'] = [
-			'group' => 'title',
-			'label' => esc_html__( 'Typography', 'bricks' ),
-			'type'  => 'typography',
-			'css'   => [
-				[
-					'property' => 'font',
-					'selector' => '> .tab-menu .tab-title.brx-open',
-				],
-			],
-		];
+			// ACTIVE TITLE
 
-		// CONTENT
+			$this->controls['titleActiveSeparator'] = [
+				'group'      => 'title',
+				'label'      => esc_html__( 'Active', 'bricks' ),
+				'type'       => 'separator',
+				'fullAccess' => true,
+			];
 
-		$this->controls['contentMargin'] = [
-			'group' => 'content',
-			'label' => esc_html__( 'Margin', 'bricks' ),
-			'type'  => 'spacing',
-			'css'   => [
-				[
-					'property' => 'margin',
-					'selector' => '> .tab-content',
+			$this->controls['titleActiveBackgroundColor'] = [
+				'group'   => 'title',
+				'label'   => esc_html__( 'Background color', 'bricks' ),
+				'type'    => 'color',
+				'css'     => [
+					[
+						'property' => 'background-color',
+						'selector' => '> .tab-menu .tab-title.brx-open',
+					],
 				],
-			],
-		];
+				'default' => [
+					'hex' => '#dddedf',
+				],
+			];
 
-		$this->controls['contentPadding'] = [
-			'group'   => 'content',
-			'label'   => esc_html__( 'Padding', 'bricks' ),
-			'type'    => 'spacing',
-			'css'     => [
-				[
-					'property' => 'padding',
-					'selector' => '> .tab-content',
+			$this->controls['titleActiveBorder'] = [
+				'group' => 'title',
+				'label' => esc_html__( 'Border', 'bricks' ),
+				'type'  => 'border',
+				'css'   => [
+					[
+						'property' => 'border',
+						'selector' => '> .tab-menu .tab-title.brx-open',
+					],
 				],
-			],
-			'default' => [
-				'top'    => 20,
-				'right'  => 20,
-				'bottom' => 20,
-				'left'   => 20,
-			],
-		];
+			];
 
-		$this->controls['contentColor'] = [
-			'group' => 'content',
-			'label' => esc_html__( 'Text color', 'bricks' ),
-			'type'  => 'color',
-			'css'   => [
-				[
-					'property' => 'color',
-					'selector' => '> .tab-content',
+			$this->controls['titleActiveTypography'] = [
+				'group' => 'title',
+				'label' => esc_html__( 'Typography', 'bricks' ),
+				'type'  => 'typography',
+				'css'   => [
+					[
+						'property' => 'font',
+						'selector' => '> .tab-menu .tab-title.brx-open',
+					],
 				],
-			],
-		];
+			];
 
-		$this->controls['contentBackgroundColor'] = [
-			'group' => 'content',
-			'label' => esc_html__( 'Background color', 'bricks' ),
-			'type'  => 'color',
-			'css'   => [
-				[
-					'property' => 'background-color',
-					'selector' => '> .tab-content',
-				],
-			],
-		];
+			// CONTENT
 
-		$this->controls['contentBorder'] = [
-			'group'   => 'content',
-			'label'   => esc_html__( 'Border', 'bricks' ),
-			'type'    => 'border',
-			'css'     => [
-				[
-					'property' => 'border',
-					'selector' => '> .tab-content',
+			$this->controls['contentMargin'] = [
+				'group' => 'content',
+				'label' => esc_html__( 'Margin', 'bricks' ),
+				'type'  => 'spacing',
+				'css'   => [
+					[
+						'property' => 'margin',
+						'selector' => '> .tab-content',
+					],
 				],
-			],
-			'default' => [
-				'width' => [
-					'top'    => 1,
-					'right'  => 1,
-					'bottom' => 1,
-					'left'   => 1,
+			];
+
+			$this->controls['contentPadding'] = [
+				'group'   => 'content',
+				'label'   => esc_html__( 'Padding', 'bricks' ),
+				'type'    => 'spacing',
+				'css'     => [
+					[
+						'property' => 'padding',
+						'selector' => '> .tab-content',
+					],
 				],
-				'style' => 'solid',
-			],
-		];
+				'default' => [
+					'top'    => 20,
+					'right'  => 20,
+					'bottom' => 20,
+					'left'   => 20,
+				],
+			];
+
+			$this->controls['contentColor'] = [
+				'group' => 'content',
+				'label' => esc_html__( 'Text color', 'bricks' ),
+				'type'  => 'color',
+				'css'   => [
+					[
+						'property' => 'color',
+						'selector' => '> .tab-content',
+					],
+				],
+			];
+
+			$this->controls['contentBackgroundColor'] = [
+				'group' => 'content',
+				'label' => esc_html__( 'Background color', 'bricks' ),
+				'type'  => 'color',
+				'css'   => [
+					[
+						'property' => 'background-color',
+						'selector' => '> .tab-content',
+					],
+				],
+			];
+
+			$this->controls['contentBorder'] = [
+				'group'   => 'content',
+				'label'   => esc_html__( 'Border', 'bricks' ),
+				'type'    => 'border',
+				'css'     => [
+					[
+						'property' => 'border',
+						'selector' => '> .tab-content',
+					],
+				],
+				'default' => [
+					'width' => [
+						'top'    => 1,
+						'right'  => 1,
+						'bottom' => 1,
+						'left'   => 1,
+					],
+					'style' => 'solid',
+				],
+			];
 	}
 
 	/**
@@ -388,6 +397,9 @@ class Element_Tabs_Nested extends Element {
 		if ( ! empty( $settings['openTabOn'] ) ) {
 			$this->set_attribute( '_root', 'data-open-on', $settings['openTabOn'] );
 		}
+
+		// Expand item on page load (@since 1.12)
+		$this->set_attribute( '_root', 'data-open-tab', ! isset( $settings['openTab'] ) ? 0 : $settings['openTab'] );
 
 		$output = "<div {$this->render_attributes( '_root' )}>";
 

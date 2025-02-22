@@ -590,6 +590,7 @@ Other than being less confusing than other Ipsum’s, Website Ipsum is also form
                 'acf' => 'brxc_enable_global_features',
                 'default' => array(
                     'responsive-helper',
+                    'responsive-slider',
                     'zoom-out',
                 ),
                 'type' => 'array'
@@ -794,6 +795,7 @@ Other than being less confusing than other Ipsum’s, Website Ipsum is also form
                     'shapes',
                     'transform',
                     'filter',
+                    'animation',
                     'css',
                     'classes',
                     'attributes',
@@ -2030,12 +2032,8 @@ Other than being less confusing than other Ipsum’s, Website Ipsum is also form
                                 'maxlength' => '',
                                 'rows' => '',
                                 'placeholder' => '{
-    0%: {
-        opacity: 0;
-    }
-    100%: {
-        opacity: 1;
-    }
+    0% { opacity: 0; }
+    100% { opacity: 1; }
 }',
                                 'new_lines' => '',
                             ),
@@ -2212,12 +2210,8 @@ Other than being less confusing than other Ipsum’s, Website Ipsum is also form
                                 'maxlength' => '',
                                 'rows' => '',
                                 'placeholder' => '{
-    0%: {
-        opacity: 0;
-    }
-    100%: {
-        opacity: 1;
-    }
+    0% { opacity: 0; }
+    100% { opacity: 1; }
 }',
                                 'new_lines' => '',
                             ),
@@ -5305,15 +5299,17 @@ Other than being less confusing than other Ipsum’s, Website Ipsum is also form
                                 'conditional_logic' => 0,
                                 'wrapper' => array(
                                     'width' => '',
-                                    'class' => 'vertical-field checkbox-3-col big-title',
+                                    'class' => 'vertical-field checkbox-2-col big-title',
                                     'id' => '',
                                 ),
                                 'choices' => array(
-                                   'responsive-helper' => '<span>Responsive Helper <a href="#" class="dashicons dashicons-info acf-js-tooltip" title="The responsive helper function unlock the 2-click options on breakpoint devices to check the minimum and maximum value of each breakpoint on the fly. It also unlock the breakpoint slider to easily slide between different breakpoints."></a></span>',
+                                   'responsive-helper' => '<span>Responsive Helper <a href="#" class="dashicons dashicons-info acf-js-tooltip" title="This function unlock the 2-click options on breakpoint devices to check the minimum and maximum value of each breakpoint on the fly."></a></span>',
+                                   'responsive-slider' => '<span>Breakpoint Slider <span class="new-feature">NEW</span><a href="#" class="dashicons dashicons-info acf-js-tooltip" title="This function unlock the breakpoint slider to easily slide between different breakpoints."></a></span>',
                                    'zoom-out' => '<span>Zoom-out <span class="new-feature">NEW</span><a href="#" class="dashicons dashicons-info acf-js-tooltip" title="This option adds a new icon inside the topbar - next to the scale input. Once clicked, it will scale down the window to get a better overview of your page and ease the drag & drop process of sections."></a></span>',
                                 ),
                                 'default_value' => array(
                                     'responsive-helper',
+                                    'responsive-slider',
                                     'zoom-out',
                                 ),
                                 'return_format' => 'value',
@@ -6274,6 +6270,7 @@ Other than being less confusing than other Ipsum’s, Website Ipsum is also form
                                     'shapes' => 'Shape Dividers',
                                     'transform' => 'Transform',
                                     'filter' => 'Filters / Transitions',
+                                    'animation' => 'Animations <span class="new-feature">NEW</span>',
                                     'css' => 'CSS',
                                     'classes' => 'Classes / ID',
                                     'attributes' => 'Attributes',
@@ -6396,6 +6393,7 @@ Other than being less confusing than other Ipsum’s, Website Ipsum is also form
                                     'overflow-dropdown' => '<span>Set the Overflow control as a dropdown. <a href="#" class="dashicons dashicons-info acf-js-tooltip" title="Check this option to transform the overflow control in a dropdown control with predefined values."></a></span>',
                                     'notes' => '<span>Admin/Editor Notes<a href="#" class="dashicons dashicons-info acf-js-tooltip" title="Check this option to add the ability to add notes to any Bricks Element."></a></span>',
                                     'generated-code' => '<span>Generated Code <a href="#" class="dashicons dashicons-info acf-js-tooltip" title="Check this option to add the ability to see the generated CSS & HTML code of any Bricks element."></a></span>',
+                                    'animation-tab' => '<span class="attention-text">New "Animation" Tab & Controls.<span class="new-feature">NEW</span><a href="#" class="dashicons dashicons-info acf-js-tooltip" title="Check this option to add all animation controls - including the new experimental animation-timeline feature for native CSS scrolling animations."></a></span>',
                                     'background-clip'=> '<span class="attention-text">New "background-clip" control. <a href="#" class="dashicons dashicons-info acf-js-tooltip" title="Check this option to add the background-clip control to your background setting options."></a></span>',
                                     'white-space' => '<span class="attention-text">New "white-space" control. <a href="#" class="dashicons dashicons-info acf-js-tooltip" title="Check this option to add the white-space property to your style layout settings."></a></span>',
                                     'content-visibility' => '<span class="attention-text">New "content-visibility" & "contain-intrinsic-size" controls. <a href="#" class="dashicons dashicons-info acf-js-tooltip" title="Check this option to add the content-visibility and the contain-intrinsic-size properties to your style layout settings."></a></span>',

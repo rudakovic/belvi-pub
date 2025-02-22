@@ -30,6 +30,7 @@ abstract class Element {
 
 	// Frontend
 	public $id;
+	public $cid; // Component ID (@since 1.12)
 	public $tag        = 'div';
 	public $attributes = [];
 	public $settings;
@@ -64,14 +65,33 @@ abstract class Element {
 	public $support_masonry = false; // @since 1.11.1
 
 	public function __construct( $element = null ) {
-		$this->element           = $element;
-		$this->label             = $this->get_label();
-		$this->keywords          = $this->get_keywords();
-		$this->is_frontend       = isset( $element['is_frontend'] ) ? $element['is_frontend'] : bricks_is_frontend();
-		$this->id                = ! empty( $element['id'] ) ? $element['id'] : Helpers::generate_random_id( false );
-		$this->settings          = ! empty( $element['settings'] ) ? $element['settings'] : [];
-		$this->nestable_item     = $this->get_nestable_item();
-		$this->nestable_children = $this->get_nestable_children();
+		$this->element     = $element;
+		$this->label       = $this->get_label();
+		$this->keywords    = $this->get_keywords();
+		$this->is_frontend = isset( $element['is_frontend'] ) ? $element['is_frontend'] : bricks_is_frontend();
+
+		// Ensure the ID is a string as it could be 6-digit number (@since 1.12)
+		$this->id       = ! empty( $element['id'] ) ? (string) $element['id'] : (string) Helpers::generate_random_id( false );
+		$this->cid      = ! empty( $element['cid'] ) ? $element['cid'] : '';
+		$this->settings = ! empty( $element['settings'] ) ? $element['settings'] : [];
+
+		/**
+		 * Is component instance
+		 *
+		 * Get the first 6 chacacters of the $this->id only.
+		 * Syntax: '{componentElement.id}:{element.id}' (6 characters)
+		 *
+		 * @since 1.12
+		 */
+		if ( ! empty( $element['instanceId'] ) ) {
+			$this->id = substr( $this->id, 0, 6 );
+		}
+
+		// Not a component: Get nestable item and children (@since 1.12)
+		if ( empty( $element['cid'] ) ) {
+			$this->nestable_item     = $this->get_nestable_item();
+			$this->nestable_children = $this->get_nestable_children();
+		}
 
 		// To distinguish non-layout nestables (slider-nested, etc.) in Vue render
 		if ( $this->nestable && ! $this->is_layout_element() ) {
@@ -1618,18 +1638,17 @@ abstract class Element {
 		$nestable     = $this->nestable;
 		$element_id   = $this->id;
 		$element_name = $this->name;
-		$settings     = ! empty( $element['settings'] ) && is_array( $element['settings'] ) ? $element['settings'] : [];
+		$settings     = $this->settings;
 		$attributes   = [];
 
 		$has_css_settings = self::has_css_settings( $settings );
 
 		// Parent element is 'slider-nested' & 'pagination' is enabled: Ensure slide 'id' is added (needed for 'aria-controls' a11y)
 		if ( $nestable ) {
-			$parent_id = ! empty( $element['parent'] ) ? $element['parent'] : false;
+			$parent_id = $element['parent'] ?? false;
 
 			if ( $parent_id ) {
-				$parent_element = ! empty( Frontend::$elements[ $parent_id ] ) ? Frontend::$elements[ $parent_id ] : false;
-
+				$parent_element = Frontend::$elements[ $parent_id ] ?? false;
 				if ( $parent_element ) {
 					if (
 					isset( $parent_element['name'] ) &&
@@ -1647,18 +1666,18 @@ abstract class Element {
 		 *
 		 * IF:
 		 * - Custom 'id' set
+		 * - Is Offcanvas element (to ensure it works with 'Selector' setting of the Toggle element)
 		 *
 		 * OR:
-		 * - Not inside query loop
-		 * - Has CSS setting
-		 * - Not a global element
+		 * - Not inside query loop && has CSS setting && not a global element && not a component (@since 1.12)
 		 */
 		$global_element_id = Helpers::get_global_element( $element, 'global' );
+		$component_id      = $element['cid'] ?? $element['parentComponent'] ?? false;
 
 		if (
-		! empty( $settings['_cssId'] ) ||
-		( ! Query::is_looping() && $has_css_settings && ! $global_element_id ) ||
-		$element_name === 'offcanvas' // Offcanvas: Always add 'id' attribute to ensure it works with 'Selector' setting of the Toggle element
+			! empty( $settings['_cssId'] ) ||
+			( ! Query::is_looping() && $has_css_settings && ! $global_element_id && ! $component_id ) ||
+			$element_name === 'offcanvas' // Offcanvas: Always add 'id' attribute to ensure it works with 'Selector' setting of the Toggle element
 		) {
 			$attributes['id'] = $this->get_element_attribute_id();
 		}
@@ -1666,9 +1685,36 @@ abstract class Element {
 		// STEP: Add element classes
 		$classes = [];
 
-		// Query loop item: Use class name instead of ID as main selector (every item uses same styling rules)
-		// Always add element class as loop item element can contain CSS settings.
-		if ( Query::is_looping() ) {
+		/**
+		 * Use component ID as class name instead of ID as main selector (every component needs to have the same CSS and non-repeating IDs)
+		 *
+		 * @since 1.12
+		 */
+		if ( $component_id ) {
+			// Get element 'name' from component (could have been converted in builder context-menu)
+			$component_id   = $element['cid'] ?? false;
+			$component_root = $component_id ? Helpers::get_component_element_by_id( $component_id ) : false;
+			if ( ! empty( $component_root['name'] ) ) {
+				$this->name = $component_root['name'];
+			}
+
+			// Is component root element: Use component ID as class name
+			if ( ! empty( $element['cid'] ) && $element['cid'] === $component_id ) {
+				$classes[] = "brxe-{$component_id}";
+			}
+
+			// Is component child element: Use element ID as class name
+			else {
+				$classes[] = "brxe-{$element_id}";
+			}
+		}
+
+		/**
+		 * Set main element selector brxe-{element.id} as class name instead of ID
+		 *
+		 * Query loop item: Use class name instead of ID as main selector (every item uses same styling rules)
+		 */
+		elseif ( Query::is_looping() ) {
 			$classes[] = "brxe-{$element_id}";
 		}
 
@@ -1753,6 +1799,7 @@ abstract class Element {
 		if ( $this->enabled_masonry() ) {
 			$classes[]                           = 'isotope';
 			$classes[]                           = 'bricks-layout-wrapper';
+			$classes[]                           = 'isotope-before-init'; // Avoid unstyled content visible (@since 1.12)
 			$classes[]                           = 'bricks-masonry';
 			$attributes['data-brx-masonry-json'] = wp_json_encode(
 				[
@@ -1785,10 +1832,10 @@ abstract class Element {
 
 			if ( is_array( $custom_attributes ) ) {
 				foreach ( $custom_attributes as $att_key => $att_val ) {
-					// Trim key (@since 1.10.1)
+					// Trim key
 					$att_key = $att_key ? trim( $att_key ) : '';
 
-					// Replace white space with dash (@since 1.10.1)
+					// Replace white space with dash
 					$att_key = str_replace( ' ', '-', $att_key );
 
 					if ( $att_key ) {
@@ -2041,7 +2088,7 @@ abstract class Element {
 			// Add URL parameters (@since 1.10.2)
 			if ( ! empty( $link_settings['urlParams'] ) ) {
 				$url_params = $this->render_dynamic_data( $link_settings['urlParams'] );
-				$permalink .= esc_url( $url_params );
+				$permalink  = esc_url( $permalink . $url_params ); // Escape after adding URL parameters
 			}
 
 			$this->set_attribute( $attribute_key, 'href', $permalink );
@@ -2064,9 +2111,24 @@ abstract class Element {
 			}
 		}
 
-		// External link
+		// External link: Use same logic as dynamic data link (@since 1.12)
 		elseif ( $link_type === 'external' && isset( $link_settings['url'] ) ) {
-			$this->set_attribute( $attribute_key, 'href', bricks_render_dynamic_data( $link_settings['url'], $post_id, 'link' ) );
+			// Check for the old dynamic data format
+			$raw_href = (string) $link_settings['url'] ?? '';
+
+			// It is a composed link e.g. "https://my-domain.com/?p={post_id}"
+			if ( strpos( $raw_href, '{' ) !== 0 || substr_count( $raw_href, '}' ) > 1 ) {
+				$context = 'text';
+			}
+
+			// It is a dynamic data tag only e.g. "{post_url}"
+			else {
+				$context = 'link';
+			}
+
+			$href = bricks_render_dynamic_data( $raw_href, $post_id, $context );
+
+			$this->set_attribute( $attribute_key, 'href', $href );
 		}
 
 		// Lightbox image or video: Set lightbox ID through 'data-pswp-id' attribute
@@ -2363,22 +2425,34 @@ abstract class Element {
 	 * @since 1.3
 	 */
 	public function get_custom_attributes( $settings = [] ) {
-		if ( empty( $settings['_attributes'] ) || ! is_array( $settings['_attributes'] ) ) {
+		$attributes = ! empty( $settings['_attributes'] ) && is_array( $settings['_attributes'] ) ? $settings['_attributes'] : [];
+
+		// Return: No attributes set
+		if ( empty( $attributes ) ) {
 			return [];
 		}
 
-		$attributes = [];
+		$custom_attributes = [];
 
-		foreach ( $settings['_attributes'] as $index => $field ) {
+		foreach ( $attributes as $field ) {
 			if ( ! empty( $field['name'] ) ) {
-				// Use 'esc_attr' instead of 'sanitize_title' to avoid removing ':' (e.g. AlpineJS)
-				$key = esc_attr( $field['name'] );
+				$attribute_id = $field['id'] ?? '';
 
-				$attributes[ $key ] = isset( $field['value'] ) ? bricks_render_dynamic_data( $field['value'], $this->post_id ) : '';
+				// Use 'esc_attr' instead of 'sanitize_title' to avoid removing ':' (e.g. AlpineJS)
+				$attribute_name = esc_attr( $field['name'] );
+
+				$attribute_value = isset( $field['value'] ) ? bricks_render_dynamic_data( $field['value'], $this->post_id ) : '';
+
+				// Get attribute value from setting "_attributes|{property.id}|value"
+				if ( $attribute_value === '' ) {
+					$attribute_value = isset( $settings[ "_attributes|$attribute_id|value" ] ) ? $settings[ "_attributes|$attribute_id|value" ] : '';
+				}
+
+				$custom_attributes[ $attribute_name ] = $attribute_value;
 			}
 		}
 
-		return $attributes;
+		return $custom_attributes;
 	}
 
 	public static function stringify_attributes( $attributes = [] ) {
@@ -2492,6 +2566,24 @@ abstract class Element {
 		}
 
 		$this->set_post_id( $post_id );
+
+		/**
+		 * Populate repeater items with component property settings
+		 *
+		 * Run before 'set_root_attributes' as _attributes can contain connected properties.
+		 *
+		 * @since 1.12
+		 */
+		if ( ! empty( $this->settings ) && is_array( $this->settings ) ) {
+			foreach ( $this->settings as $key => $repeater_items ) {
+				$control_type = $this->controls[ $key ]['type'] ?? false;
+				if ( $control_type === 'repeater' && $key !== '_children' ) {
+					foreach ( $repeater_items as $repeater_item_index => $repeater_item_value ) {
+						$this->settings[ $key ][ $repeater_item_index ] = $this->get_component_repeater_item_settings( $repeater_item_value, $key );
+					}
+				}
+			}
+		}
 
 		/**
 		 * Set root attributes
@@ -3739,6 +3831,11 @@ abstract class Element {
 		// Element ID
 		$this->set_attribute( $node_key, 'data-query-element-id', $this->id );
 
+		// Component ID (@since 1.12)
+		if ( $this->cid ) {
+			$this->set_attribute( $node_key, 'data-query-component-id', $this->cid );
+		}
+
 		// Unset 'queryEditor' value as not needed in the frontend
 		if ( isset( $query->query_vars['queryEditor'] ) ) {
 			unset( $query->query_vars['queryEditor'] );
@@ -3765,6 +3862,11 @@ abstract class Element {
 			}
 
 			$this->set_attribute( $node_key, 'data-observer-margin', $offset );
+		}
+
+		// Infinite scroll delay (@since 1.12)
+		if ( ! empty( $settings['query']['infinite_scroll_delay'] ) ) {
+			$this->set_attribute( $node_key, 'data-observer-delay', $settings['query']['infinite_scroll_delay'] );
 		}
 
 		if ( $render ) {
@@ -4075,19 +4177,29 @@ abstract class Element {
 
 			$element_id = $this->get_element_attribute_id();
 
+			// Is component: Use .brxe- class instead of ID (@since 1.12)
+			$components = Database::$global_data['components'];
+
+			// Stringify components array
+			$components_string = wp_json_encode( $components );
+
+			// Check if element 'id' is in components string
+			$is_component = strpos( $components_string, $this->id ) !== false;
+
+			$nav_menu_selector = $is_component ? ".brxe-{$this->id}" : "#{$element_id}";
+
 			// Nav menu
 			if ( $this->name === 'nav-menu' ) {
-				$nav_menu_inline_css .= "#{$element_id} .bricks-nav-menu-wrapper { display: none; }\n";
-				$nav_menu_inline_css .= "#{$element_id} .bricks-mobile-menu-toggle { display: block; }\n";
+				$nav_menu_inline_css .= "$nav_menu_selector .bricks-nav-menu-wrapper { display: none; }\n";
+				$nav_menu_inline_css .= "$nav_menu_selector .bricks-mobile-menu-toggle { display: block; }\n";
 			}
 
 			// Nav nested
 			elseif ( $this->name === 'nav-nested' ) {
-				$nav_menu_inline_css .= "#{$element_id} .brx-toggle-div { display: inline-flex; }\n";
-				$nav_menu_inline_css .= "#{$element_id} .brxe-toggle { display: inline-flex; }\n";
+				$nav_menu_inline_css .= "$nav_menu_selector .brx-toggle-div { display: inline-flex; }\n";
+				$nav_menu_inline_css .= "$nav_menu_selector .brxe-toggle { display: inline-flex; }\n";
 
 				// NOTE: Using element ID doesn't allow "Nav items" settings to overwrite it
-				// $nav_menu_inline_css .= "#{$element_id} .brx-nav-nested-items {
 				$nav_menu_inline_css .= "[data-script-id=\"{$this->id}\"] .brx-nav-nested-items {
 					opacity: 0;
 					visibility: hidden;
@@ -4199,5 +4311,51 @@ abstract class Element {
 			$nodes .= "<li class='bricks-gutter-sizer'></li>";
 		}
 		return $nodes;
+	}
+
+	/**
+	 * Get component repeater item settings (by repeater item.id)
+	 *
+	 * Merge settings of repeater item with component settings.
+	 *
+	 * @since 1.12
+	 */
+	public function get_component_repeater_item_settings( $settings = [], $control_key = '' ) {
+		// Return settings: Element is not a component instance
+		if ( empty( $this->element['instanceId'] ) ) {
+			return $settings;
+		}
+
+		// Get repeater item ID
+		$repeater_item_id = $settings['id'] ?? false;
+
+		if ( ! $repeater_item_id ) {
+			return $settings;
+		}
+
+		$component_instance_settings = Helpers::get_component_instance( $this->element, 'settings' );
+
+		// Get in-builder repeater item real-time/un-saved settings from element settings
+		foreach ( $this->settings as $key => $value ) {
+			// Setting key belongs to the current repeater item
+			if ( strpos( $key, "$control_key|$repeater_item_id|" ) !== -1 ) {
+				$component_instance_settings[ $key ] = $value;
+			}
+		}
+
+		if ( is_array( $component_instance_settings ) && ! empty( $component_instance_settings ) ) {
+			// Get property defaults or custom value for current repeater item (use repeater item 'id')
+			foreach ( $component_instance_settings as $key => $value ) {
+				// Setting key belongs to the current repeater item
+				if ( strpos( $key, "$control_key|$repeater_item_id|" ) !== -1 ) {
+					// Remove repeater control key && repeater item ID from the key to match the settings key of the repeater item
+					$setting_key = str_replace( "$control_key|$repeater_item_id|", '', $key );
+
+					$settings[ $setting_key ] = $value;
+				}
+			}
+		}
+
+		return $settings;
 	}
 }

@@ -19,18 +19,15 @@ class Element_Accordion extends Element {
 	public function set_control_groups() {
 		$this->control_groups['title'] = [
 			'title' => esc_html__( 'Title', 'bricks' ),
-			'tab'   => 'content',
 		];
 
 		$this->control_groups['content'] = [
 			'title' => esc_html__( 'Content', 'bricks' ),
-			'tab'   => 'content',
 		];
 	}
 
 	public function set_controls() {
 		$this->controls['accordions'] = [
-			'tab'         => 'content',
 			'placeholder' => esc_html__( 'Accordion', 'bricks' ),
 			'type'        => 'repeater',
 			'checkLoop'   => true,
@@ -70,27 +67,34 @@ class Element_Accordion extends Element {
 		$this->controls = array_replace_recursive( $this->controls, $this->get_loop_builder_controls() );
 
 		$this->controls['expandFirstItem'] = [
-			'tab'   => 'content',
-			'label' => esc_html__( 'Expand first item', 'bricks' ),
-			'type'  => 'checkbox',
+			'deprecated' => '1.11.2', // Use 'expandItem' instead
+			'label'      => esc_html__( 'Expand first item', 'bricks' ),
+			'type'       => 'checkbox',
+		];
+
+		// Expand item on page load (@since 1.12)
+		$this->controls['expandItem'] = [
+			'label'       => esc_html__( 'Expand item indexes', 'bricks' ),
+			'type'        => 'text',
+			'description' => esc_html__( 'Indexes of the items to expand on page load, separated by comma, start at 0.', 'bricks' ),
+			'inline'      => true,
+			'placeholder' => '',
+			'required'    => [ 'expandFirstItem', '!=', true ],
 		];
 
 		$this->controls['independentToggle'] = [
-			'tab'         => 'content',
 			'label'       => esc_html__( 'Independent toggle', 'bricks' ),
 			'type'        => 'checkbox',
 			'description' => esc_html__( 'Enable to open & close an item without toggling other items.', 'bricks' ),
 		];
 
 		$this->controls['transition'] = [
-			'tab'         => 'content',
 			'label'       => esc_html__( 'Transition', 'bricks' ) . ' (ms)',
 			'type'        => 'number',
 			'placeholder' => 200,
 		];
 
 		$this->controls['faqSchema'] = [
-			'tab'         => 'content',
 			'label'       => esc_html__( 'FAQ schema', 'bricks' ),
 			'type'        => 'checkbox',
 			'description' => '<a href="https://developers.google.com/search/docs/appearance/structured-data/faqpage" target="_blank">' . esc_html__( 'Generate FAQPage structured data (JSON-LD).', 'bricks' ) . '</a>',
@@ -99,7 +103,6 @@ class Element_Accordion extends Element {
 		// TITLE
 
 		$this->controls['titleTag'] = [
-			'tab'         => 'content',
 			'group'       => 'title',
 			'label'       => esc_html__( 'HTML tag', 'bricks' ),
 			'type'        => 'select',
@@ -118,7 +121,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['icon'] = [
-			'tab'     => 'content',
 			'group'   => 'title',
 			'label'   => esc_html__( 'Icon', 'bricks' ),
 			'type'    => 'icon',
@@ -129,7 +131,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['iconTypography'] = [
-			'tab'      => 'content',
 			'group'    => 'title',
 			'label'    => esc_html__( 'Icon typography', 'bricks' ),
 			'type'     => 'typography',
@@ -143,7 +144,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['iconExpanded'] = [
-			'tab'     => 'content',
 			'group'   => 'title',
 			'label'   => esc_html__( 'Icon expanded', 'bricks' ),
 			'type'    => 'icon',
@@ -154,7 +154,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['iconExpandedTypography'] = [
-			'tab'      => 'content',
 			'group'    => 'title',
 			'label'    => esc_html__( 'Icon expanded typography', 'bricks' ),
 			'type'     => 'typography',
@@ -178,7 +177,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['iconPosition'] = [
-			'tab'         => 'content',
 			'group'       => 'title',
 			'label'       => esc_html__( 'Icon position', 'bricks' ),
 			'type'        => 'select',
@@ -189,7 +187,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['iconRotate'] = [
-			'tab'         => 'content',
 			'group'       => 'title',
 			'label'       => esc_html__( 'Icon rotate in °', 'bricks' ),
 			'type'        => 'number',
@@ -206,7 +203,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['titleMargin'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Margin', 'bricks' ),
 			'type'  => 'spacing',
@@ -219,7 +215,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['titlePadding'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Padding', 'bricks' ),
 			'type'  => 'spacing',
@@ -232,7 +227,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['titleTypography'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Title typography', 'bricks' ),
 			'type'  => 'typography',
@@ -245,7 +239,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['subtitleTypography'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Subtitle typography', 'bricks' ),
 			'type'  => 'typography',
@@ -258,7 +251,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['titleBackgroundColor'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Background color', 'bricks' ),
 			'type'  => 'color',
@@ -271,7 +263,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['titleBorder'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Border', 'bricks' ),
 			'type'  => 'border',
@@ -284,7 +275,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['titleActiveBoxShadow'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Box shadow', 'bricks' ),
 			'type'  => 'box-shadow',
@@ -297,7 +287,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['titleActiveTypography'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Active typography', 'bricks' ),
 			'type'  => 'typography',
@@ -310,7 +299,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['titleActiveBackgroundColor'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Active background', 'bricks' ),
 			'type'  => 'color',
@@ -323,7 +311,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['titleActiveBorder'] = [
-			'tab'   => 'content',
 			'group' => 'title',
 			'label' => esc_html__( 'Active border', 'bricks' ),
 			'type'  => 'border',
@@ -338,7 +325,6 @@ class Element_Accordion extends Element {
 		// CONTENT
 
 		$this->controls['contentMargin'] = [
-			'tab'   => 'content',
 			'group' => 'content',
 			'label' => esc_html__( 'Margin', 'bricks' ),
 			'type'  => 'spacing',
@@ -351,7 +337,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['contentPadding'] = [
-			'tab'   => 'content',
 			'group' => 'content',
 			'label' => esc_html__( 'Padding', 'bricks' ),
 			'type'  => 'spacing',
@@ -364,7 +349,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['contentTypography'] = [
-			'tab'   => 'content',
 			'group' => 'content',
 			'label' => esc_html__( 'Content typography', 'bricks' ),
 			'type'  => 'typography',
@@ -377,7 +361,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['contentBackgroundColor'] = [
-			'tab'   => 'content',
 			'group' => 'content',
 			'label' => esc_html__( 'Background color', 'bricks' ),
 			'type'  => 'color',
@@ -390,7 +373,6 @@ class Element_Accordion extends Element {
 		];
 
 		$this->controls['contentBorder'] = [
-			'tab'   => 'content',
 			'group' => 'content',
 			'label' => esc_html__( 'Border', 'bricks' ),
 			'type'  => 'border',
@@ -464,6 +446,11 @@ class Element_Accordion extends Element {
 			}
 		}
 
+		// Expand item on page load (@since 1.12)
+		if ( isset( $settings['expandItem'] ) ) {
+			$this->set_attribute( '_root', 'data-expand-item', $settings['expandItem'] );
+		}
+
 		if ( count( $data_script_args ) ) {
 			$this->set_attribute( '_root', 'data-script-args', join( ',', $data_script_args ) );
 		}
@@ -510,8 +497,8 @@ class Element_Accordion extends Element {
 	}
 
 	public function render_repeater_item( $accordion, $title_tag, $icon, $icon_expanded ) {
-		$settings = $this->settings;
 		$index    = $this->loop_index;
+		$settings = $this->settings;
 		$output   = '';
 
 		// Set 'id' to open & scroll to specific tab (@since 1.8.6)
@@ -522,7 +509,8 @@ class Element_Accordion extends Element {
 		$this->set_attribute( "accordion-item-$index", 'class', [ 'accordion-item' ] );
 
 		// Set unique id for each item for ARIA roles and properties
-		$accordion_id = "accordion-{$this->id}-$index";
+		$accordion_id    = "accordion-{$this->id}-$index";
+		$accordion_title = '';
 
 		$output .= "<li {$this->render_attributes( "accordion-item-$index" )}>";
 
@@ -540,11 +528,12 @@ class Element_Accordion extends Element {
 			$output .= "<div {$this->render_attributes("accordion-title-wrapper-$index")}>";
 
 			if ( ! empty( $accordion['title'] ) ) {
-				$output .= "<div {$this->render_attributes( 'accordion-title' )}>";
+				$accordion_title = $this->render_dynamic_data( $accordion['title'] );
+				$output         .= "<div {$this->render_attributes( 'accordion-title' )}>";
 
 				$this->set_attribute( "accordion-title-$index", 'class', [ 'title' ] );
 
-				$output .= "<$title_tag {$this->render_attributes( "accordion-title-$index" )}>" . $this->render_dynamic_data( $accordion['title'] ) . "</$title_tag>";
+				$output .= "<$title_tag {$this->render_attributes( "accordion-title-$index" )}>" . $accordion_title . "</$title_tag>";
 
 				if ( $icon_expanded ) {
 					$output .= $icon_expanded;
@@ -586,7 +575,7 @@ class Element_Accordion extends Element {
 		if ( isset( $settings['faqSchema'] ) ) {
 			$faq_schema = [
 				'@type'          => 'Question',
-				'name'           => $accordion['title'],
+				'name'           => $accordion_title,
 				'acceptedAnswer' => [
 					'@type' => 'Answer',
 					'text'  => strip_tags( $content )

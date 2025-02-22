@@ -79,7 +79,12 @@ class Element_Post_Navigation extends Element {
 			'label'       => esc_html__( 'Excluded terms', 'bricks' ),
 			'type'        => 'select',
 			'multiple'    => true,
-			'options'     => bricks_is_builder() ? Helpers::get_terms_options() : [],
+			'searchable'  => true,
+			'optionsAjax' => [
+				'action'                => 'bricks_get_terms_options',
+				'postTypes'             => [ 'any' ],
+				'addLanguageToTermName' => true,
+			],
 			'placeholder' => esc_html__( 'None', 'bricks' ),
 		];
 

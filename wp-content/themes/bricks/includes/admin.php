@@ -11,7 +11,7 @@ class Admin {
 
 		add_action( 'after_switch_theme', [ $this, 'set_default_settings' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue_scripts' ] );
-		add_action( 'enqueue_block_editor_assets', [ $this, 'gutenberg_scripts' ] );
+		add_action( 'enqueue_block_assets', [ $this, 'gutenberg_scripts' ] );
 
 		add_action( 'admin_menu', [ $this, 'admin_menu' ] );
 		add_action( 'admin_notices', [ $this, 'admin_notices' ] );
@@ -657,6 +657,22 @@ class Admin {
 			\Bricks\Query_Filters::get_instance()->maybe_create_tables();
 		}
 
+		// STEP: Regenerate CSS files if 'bricksCascadeLayer' setting changed (@since 1.12)
+		$cascade_layer_old      = isset( $old_settings['bricksCascadeLayer'] );
+		$cascade_layer_new      = isset( $settings['bricksCascadeLayer'] );
+		$css_loading_method_old = $old_settings['cssLoading'] ?? false;
+		$css_loading_method_new = $settings['cssLoading'] ?? false;
+
+		if (
+			$css_loading_method_new === 'file' &&
+			$cascade_layer_new !== $cascade_layer_old
+		) {
+			// NOTE: Run schedule_css_file_regeneration() code manually as no access to PHP class Assets_Files
+			$timestamp = time() + 1;
+			$hook      = 'bricks_regenerate_css_files';
+			wp_schedule_single_event( $timestamp, $hook );
+		}
+
 		wp_send_json_success(
 			[
 				'new_settings'    => $new_settings,
@@ -1089,7 +1105,47 @@ class Admin {
 	public function gutenberg_scripts() {
 		if ( Helpers::is_post_type_supported() && Capabilities::current_user_can_use_builder() ) {
 			wp_enqueue_script( 'bricks-gutenberg', BRICKS_URL_ASSETS . 'js/gutenberg.min.js', [ 'jquery' ], filemtime( BRICKS_PATH_ASSETS . 'js/gutenberg.min.js' ), true );
+			wp_enqueue_style( 'bricks-admin', BRICKS_URL_ASSETS . 'css/admin.min.css', [], filemtime( BRICKS_PATH_ASSETS . 'css/admin.min.css' ) );
 		}
+
+		// Check: Is post edit screen: Show "Edit with Bricks" appender block (@since 1.12)
+		$screen             = get_current_screen();
+		$post_id            = get_the_ID();
+		$render_with_bricks = false;
+
+		if ( $screen && $screen->base === 'post' && $post_id ) {
+			$post = get_post( $post_id );
+			// Check: No Gutenberg data > Render with Bricks
+			$render_with_bricks = empty( $post->post_content ) && use_block_editor_for_post( $post );
+			if ( $render_with_bricks ) {
+				// Check: No Bricks data
+				if ( ! Helpers::get_bricks_data( $post_id, 'content' ) ) {
+					$render_with_bricks = false;
+
+					// Set active templates to check if any template renders this post
+					Database::set_active_templates();
+
+					// Current page is rendered through Bricks template
+					if ( Database::$active_templates['content'] != 0 && Database::$active_templates['content'] != $post_id ) {
+						$render_with_bricks = true;
+					}
+				}
+			}
+		}
+
+		wp_localize_script(
+			'bricks-gutenberg',
+			'bricksData',
+			[
+				'builderEditLink'  => Helpers::get_builder_edit_link(),
+				'renderWithBricks' => $render_with_bricks,
+				'i18n'             => [
+					'editWithBricks'      => esc_html__( 'Edit with Bricks', 'bricks' ),
+					'useDefaultEditor'    => esc_html__( 'Use block editor', 'bricks' ),
+					'bricksActiveMessage' => esc_html__( 'This page is built with Bricks.', 'bricks' ),
+				],
+			]
+		);
 	}
 
 	/**
@@ -1105,6 +1161,31 @@ class Admin {
 		}
 
 		wp_enqueue_script( 'bricks-admin', BRICKS_URL_ASSETS . 'js/admin.min.js', [ 'jquery' ], filemtime( BRICKS_PATH_ASSETS . 'js/admin.min.js' ), true );
+
+		// Check: Is post edit screen: Show "Edit with Bricks" appender block (@since 1.12)
+		$screen             = get_current_screen();
+		$post_id            = get_the_ID();
+		$render_with_bricks = false;
+
+		if ( $screen && $screen->base === 'post' && $post_id ) {
+			$post = get_post( $post_id );
+			// Check: No Gutenberg data > Render with Bricks
+			$render_with_bricks = empty( $post->post_content );
+			if ( $render_with_bricks ) {
+				// Check: No Bricks data
+				if ( ! Helpers::get_bricks_data( $post_id, 'content' ) ) {
+					$render_with_bricks = false;
+
+					// Set active templates to check if any template renders this post
+					Database::set_active_templates();
+
+					// Current page is rendered through Bricks template
+					if ( Database::$active_templates['content'] != 0 && Database::$active_templates['content'] != $post_id ) {
+						$render_with_bricks = true;
+					}
+				}
+			}
+		}
 
 		wp_localize_script(
 			'bricks-admin',
@@ -1128,8 +1209,11 @@ class Admin {
 				'formSubmissionsSearchPlaceholder'  => esc_html__( 'Form data', 'bricks' ),
 				'deleteBricksDataUrl'               => Helpers::delete_bricks_data_by_post_id(),
 				'builderEditLink'                   => Helpers::get_builder_edit_link(),
+				'renderWithBricks'                  => $render_with_bricks,
 				'i18n'                              => [
-					'editWithBricks' => esc_html__( 'Edit with Bricks', 'bricks' ),
+					'editWithBricks'      => esc_html__( 'Edit with Bricks', 'bricks' ),
+					'useDefaultEditor'    => esc_html__( 'Use block editor', 'bricks' ),
+					'bricksActiveMessage' => esc_html__( 'This page is built with Bricks', 'bricks' ),
 				],
 			]
 		);
@@ -1141,12 +1225,46 @@ class Admin {
 	 * @since 1.0
 	 */
 	public function admin_menu() {
+		$menu_icon = 'data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB3aWR0aD0iMzVweCIgaGVpZ2h0PSI0NXB4IiB2aWV3Qm94PSIwIDAgMzUgNDUiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+CiAgICA8IS0tIEdlbmVyYXRvcjogU2tldGNoIDU5LjEgKDg2MTQ0KSAtIGh0dHBzOi8vc2tldGNoLmNvbSAtLT4KICAgIDx0aXRsZT5iPC90aXRsZT4KICAgIDxkZXNjPkNyZWF0ZWQgd2l0aCBTa2V0Y2guPC9kZXNjPgogICAgPGcgaWQ9IkxvZ29zLC1GYXZpY29uIiBzdHJva2U9Im5vbmUiIHN0cm9rZS13aWR0aD0iMSIgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj4KICAgICAgICA8ZyBpZD0iRmF2aWNvbi0oNjR4NjQpIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTYuMDAwMDAwLCAtMTEuMDAwMDAwKSIgZmlsbD0iIzIxMjEyMSIgZmlsbC1ydWxlPSJub256ZXJvIj4KICAgICAgICAgICAgPHBhdGggZD0iTTI1LjE4NzUsMTEuMzQzNzUgTDI1LjkzNzUsMTEuODEyNSBMMjUuOTM3NSwyNC44NDM3NSBDMjguNTgzMzQ2NiwyMy4wOTM3NDEzIDMxLjUxMDQwMDYsMjIuMjE4NzUgMzQuNzE4NzUsMjIuMjE4NzUgQzM5LjM0Mzc3MzEsMjIuMjE4NzUgNDMuMTc3MDY4MSwyMy44MzMzMTcyIDQ2LjIxODc1LDI3LjA2MjUgQzQ5LjIxODc2NSwzMC4yOTE2ODI4IDUwLjcxODc1LDM0LjI3MDgwOTcgNTAuNzE4NzUsMzkgQzUwLjcxODc1LDQzLjc1MDAyMzcgNDkuMjA4MzQ4NCw0Ny43MjkxNTA2IDQ2LjE4NzUsNTAuOTM3NSBDNDMuMTQ1ODE4MSw1NC4xNjY2ODI4IDM5LjMyMjkzOTcsNTUuNzgxMjUgMzQuNzE4NzUsNTUuNzgxMjUgQzMwLjY5Nzg5NjYsNTUuNzgxMjUgMjcuMjYwNDMwOSw1NC4zNDM3NjQ0IDI0LjQwNjI1LDUxLjQ2ODc1IEwyNC40MDYyNSw1NSBMMTYuMDMxMjUsNTUgTDE2LjAzMTI1LDEyLjM3NSBMMjUuMTg3NSwxMS4zNDM3NSBaIE0zMy4xMjUsMzAuNjg3NSBDMzAuOTE2NjU1NiwzMC42ODc1IDI5LjA3MjkyNDEsMzEuNDM3NDkyNSAyNy41OTM3NSwzMi45Mzc1IEMyNi4xMTQ1NzU5LDM0LjQ3OTE3NDQgMjUuMzc1LDM2LjQ5OTk4NzUgMjUuMzc1LDM5IEMyNS4zNzUsNDEuNTAwMDEyNSAyNi4xMTQ1NzU5LDQzLjUxMDQwOTEgMjcuNTkzNzUsNDUuMDMxMjUgQzI5LjA1MjA5MDYsNDYuNTUyMDkwOSAzMC44OTU4MjIyLDQ3LjMxMjUgMzMuMTI1LDQ3LjMxMjUgQzM1LjQ3OTE3ODQsNDcuMzEyNSAzNy4zODU0MDk0LDQ2LjUyMDg0MTMgMzguODQzNzUsNDQuOTM3NSBDNDAuMjgxMjU3Miw0My4zNzQ5OTIyIDQxLDQxLjM5NTg0NTMgNDEsMzkgQzQxLDM2LjYwNDE1NDcgNDAuMjcwODQwNiwzNC42MTQ1OTEzIDM4LjgxMjUsMzMuMDMxMjUgQzM3LjM1NDE1OTQsMzEuNDY4NzQyMiAzNS40NTgzNDUsMzAuNjg3NSAzMy4xMjUsMzAuNjg3NSBaIiBpZD0iYiI+PC9wYXRoPgogICAgICAgIDwvZz4KICAgIDwvZz4KPC9zdmc+';
+
+		/**
+		 * Handle form submissions standalone menu first
+		 *
+		 * Only show standalone form submissions menu if:
+		 * 1. Form submissions are enabled in global settings
+		 * 2. User has form submission access capability
+		 * 3. User has no other Bricks access
+		 *
+		 * This creates a limited menu just for viewing form submissions for users with restricted access
+		 *
+		 * @since 1.12
+		 */
+		if (
+			isset( Database::$global_settings['saveFormSubmissions'] ) &&
+			Capabilities::$form_submission_access &&
+			Capabilities::current_user_has_no_access()
+		) {
+			// Handle bulk actions
+			Integrations\Form\Submission_Table::handle_custom_actions();
+
+			// Add top-level menu page for form submissions
+			$submissions_page = add_menu_page(
+				'Bricks - ' . esc_html__( 'Form Submissions', 'bricks' ),
+				'Bricks - ' . esc_html__( 'Form Submissions', 'bricks' ),
+				Capabilities::FORM_SUBMISSION_ACCESS,
+				'bricks-form-submissions',
+				[ $this, 'admin_screen_form_submissions' ],
+				$menu_icon,
+				2
+			);
+
+			$this->setup_submissions_page( $submissions_page );
+		}
+
 		// Return: Current user has no access to Bricks
 		if ( Capabilities::current_user_has_no_access() ) {
 			return;
 		}
-
-		$menu_icon = 'data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB3aWR0aD0iMzVweCIgaGVpZ2h0PSI0NXB4IiB2aWV3Qm94PSIwIDAgMzUgNDUiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+CiAgICA8IS0tIEdlbmVyYXRvcjogU2tldGNoIDU5LjEgKDg2MTQ0KSAtIGh0dHBzOi8vc2tldGNoLmNvbSAtLT4KICAgIDx0aXRsZT5iPC90aXRsZT4KICAgIDxkZXNjPkNyZWF0ZWQgd2l0aCBTa2V0Y2guPC9kZXNjPgogICAgPGcgaWQ9IkxvZ29zLC1GYXZpY29uIiBzdHJva2U9Im5vbmUiIHN0cm9rZS13aWR0aD0iMSIgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj4KICAgICAgICA8ZyBpZD0iRmF2aWNvbi0oNjR4NjQpIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTYuMDAwMDAwLCAtMTEuMDAwMDAwKSIgZmlsbD0iIzIxMjEyMSIgZmlsbC1ydWxlPSJub256ZXJvIj4KICAgICAgICAgICAgPHBhdGggZD0iTTI1LjE4NzUsMTEuMzQzNzUgTDI1LjkzNzUsMTEuODEyNSBMMjUuOTM3NSwyNC44NDM3NSBDMjguNTgzMzQ2NiwyMy4wOTM3NDEzIDMxLjUxMDQwMDYsMjIuMjE4NzUgMzQuNzE4NzUsMjIuMjE4NzUgQzM5LjM0Mzc3MzEsMjIuMjE4NzUgNDMuMTc3MDY4MSwyMy44MzMzMTcyIDQ2LjIxODc1LDI3LjA2MjUgQzQ5LjIxODc2NSwzMC4yOTE2ODI4IDUwLjcxODc1LDM0LjI3MDgwOTcgNTAuNzE4NzUsMzkgQzUwLjcxODc1LDQzLjc1MDAyMzcgNDkuMjA4MzQ4NCw0Ny43MjkxNTA2IDQ2LjE4NzUsNTAuOTM3NSBDNDMuMTQ1ODE4MSw1NC4xNjY2ODI4IDM5LjMyMjkzOTcsNTUuNzgxMjUgMzQuNzE4NzUsNTUuNzgxMjUgQzMwLjY5Nzg5NjYsNTUuNzgxMjUgMjcuMjYwNDMwOSw1NC4zNDM3NjQ0IDI0LjQwNjI1LDUxLjQ2ODc1IEwyNC40MDYyNSw1NSBMMTYuMDMxMjUsNTUgTDE2LjAzMTI1LDEyLjM3NSBMMjUuMTg3NSwxMS4zNDM3NSBaIE0zMy4xMjUsMzAuNjg3NSBDMzAuOTE2NjU1NiwzMC42ODc1IDI5LjA3MjkyNDEsMzEuNDM3NDkyNSAyNy41OTM3NSwzMi45Mzc1IEMyNi4xMTQ1NzU5LDM0LjQ3OTE3NDQgMjUuMzc1LDM2LjQ5OTk4NzUgMjUuMzc1LDM5IEMyNS4zNzUsNDEuNTAwMDEyNSAyNi4xMTQ1NzU5LDQzLjUxMDQwOTEgMjcuNTkzNzUsNDUuMDMxMjUgQzI5LjA1MjA5MDYsNDYuNTUyMDkwOSAzMC44OTU4MjIyLDQ3LjMxMjUgMzMuMTI1LDQ3LjMxMjUgQzM1LjQ3OTE3ODQsNDcuMzEyNSAzNy4zODU0MDk0LDQ2LjUyMDg0MTMgMzguODQzNzUsNDQuOTM3NSBDNDAuMjgxMjU3Miw0My4zNzQ5OTIyIDQxLDQxLjM5NTg0NTMgNDEsMzkgQzQxLDM2LjYwNDE1NDcgNDAuMjcwODQwNiwzNC42MTQ1OTEzIDM4LjgxMjUsMzMuMDMxMjUgQzM3LjM1NDE1OTQsMzEuNDY4NzQyMiAzNS40NTgzNDUsMzAuNjg3NSAzMy4xMjUsMzAuNjg3NSBaIiBpZD0iYiI+PC9wYXRoPgogICAgICAgIDwvZz4KICAgIDwvZz4KPC9zdmc+';
 
 		add_menu_page(
 			BRICKS_NAME,
@@ -1195,28 +1313,20 @@ class Admin {
 		);
 
 		// Form submissions (@since 1.9.2)
-		if ( isset( Database::$global_settings['saveFormSubmissions'] ) ) {
+		if ( isset( Database::$global_settings['saveFormSubmissions'] ) && Capabilities::$form_submission_access ) {
 			// Handle bulk actions (failed to hook on handle-bulk_actions)
 			Integrations\Form\Submission_Table::handle_custom_actions();
 
-			if ( Capabilities::$form_submission_access ) {
-				$submissions_page = add_submenu_page(
-					'bricks',
-					esc_html__( 'Form Submissions', 'bricks' ),
-					esc_html__( 'Form Submissions', 'bricks' ),
-					'read',
-					'bricks-form-submissions',
-					[ $this, 'admin_screen_form_submissions' ]
-				);
+			$submissions_page = add_submenu_page(
+				'bricks',
+				esc_html__( 'Form Submissions', 'bricks' ),
+				esc_html__( 'Form Submissions', 'bricks' ),
+				Capabilities::FORM_SUBMISSION_ACCESS,
+				'bricks-form-submissions',
+				[ $this, 'admin_screen_form_submissions' ]
+			);
 
-				// Add screen options
-				add_action( 'load-' . $submissions_page, [ 'Bricks\Integrations\Form\Submission_Table', 'add_screen_options' ] );
-
-				// Add columns to indivual form submissions page (check URL param: form_id)
-				if ( isset( $_GET['form_id'] ) ) {
-					add_filter( "manage_{$submissions_page}_columns", [ 'Bricks\Integrations\Form\Submission_Table', 'screen_columns' ] );
-				}
-			}
+			$this->setup_submissions_page( $submissions_page );
 		}
 
 		add_submenu_page(
@@ -1245,6 +1355,23 @@ class Admin {
 			'bricks-license',
 			[ $this, 'admin_screen_license' ]
 		);
+	}
+
+
+	/**
+	 * Setup form submissions page options and columns
+	 *
+	 * @param string $submissions_page The page hook.
+	 */
+	private function setup_submissions_page( $submissions_page ) {
+		// Add screen options
+		add_action( "load-$submissions_page", [ 'Bricks\Integrations\Form\Submission_Table', 'add_screen_options' ] );
+
+		// Add columns if form_id is present and valid
+		$form_id = isset( $_GET['form_id'] ) ? absint( $_GET['form_id'] ) : 0;
+		if ( $form_id ) {
+			add_filter( "manage_{$submissions_page}_columns", [ 'Bricks\Integrations\Form\Submission_Table', 'screen_columns' ] );
+		}
 	}
 
 	public function admin_screen_getting_started() {
@@ -1651,15 +1778,8 @@ class Admin {
 	public function row_actions( $actions, $post ) {
 		$post_id = $post->ID;
 
-		/**
-		 * Add "Duplicate with Bricks" link to post row actions
-		 *
-		 * - Only available if user can edit this post (i.e. contributor can only edit own posts)
-		 * - Shouldn't restricted to Bricks data posts only then this will force user use another plugin to clone non-Bricks posts
-		 *
-		 * @since 1.9.8
-		*/
-		if ( current_user_can( 'edit_post', $post_id ) ) {
+		// Add "Duplicate with Bricks" link to post row actions (@since 1.12)
+		if ( self::use_duplicate_content( $post_id ) ) {
 			$builder_mode             = Helpers::get_editor_mode( $post_id ) === 'bricks' ? ' (Bricks)' : ' (WordPress)';
 			$actions['brx_duplicate'] = sprintf(
 				'<a class="bricks-duplicate" href="%s">%s</a>',
@@ -2122,8 +2242,8 @@ class Admin {
 			return false;
 		}
 
-		// Return: User can not edit this post
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+		// Return: Duplicate content is not allowed (@since 1.12)
+		if ( ! self::use_duplicate_content( $post_id ) ) {
 			return false;
 		}
 
@@ -2224,6 +2344,42 @@ class Admin {
 		}
 
 		return $new_post_id;
+	}
+
+	/**
+	 * Determine if duplicate content is allowed for a post.
+	 *
+	 * @param int $post_id
+	 * @return bool
+	 *
+	 * @since 1.9.8
+	 * @since 1.12 Refactored for duplicate content Bricks settings.
+	 */
+	public static function use_duplicate_content( $post_id ) {
+		// Get setting
+		$setting = Database::get_setting( 'duplicateContent', 'enable' );
+
+		// Possible settings: enable, disable_all, disable_wp
+		switch ( $setting ) {
+			case 'disable_all':
+				$use = false;
+				break;
+			case 'disable_wp':
+				$use = Helpers::get_editor_mode( $post_id ) === 'bricks';
+				break;
+			default:
+				// Shouldn't restricted to Bricks data posts only then this will force user use another plugin to clone non-Bricks posts
+				$use = true;
+				break;
+		}
+
+		// Ensure user can edit the post
+		$use = $use && current_user_can( 'edit_post', $post_id );
+
+		// @see https://academy.bricksbuilder.io/article/filter-bricks-use_duplicate_content/ (@since 1.12)
+		$use = apply_filters( 'bricks/use_duplicate_content', $use, $post_id, $setting );
+
+		return $use;
 	}
 
 	/**

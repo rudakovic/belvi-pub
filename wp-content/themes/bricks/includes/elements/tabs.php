@@ -97,6 +97,15 @@ class Element_Tabs extends Element {
 			'placeholder' => 'Click',
 		];
 
+		// Expand item on page load (@since 1.12)
+		$this->controls['openTab'] = [
+			'label'       => esc_html__( 'Open tab index', 'bricks' ),
+			'type'        => 'text',
+			'description' => esc_html__( 'Index of the item to expand on page load, start at 0.', 'bricks' ),
+			'inline'      => true,
+			'placeholder' => '0',
+		];
+
 		// TITLE
 
 		$this->controls['titleGrow'] = [
@@ -344,6 +353,9 @@ class Element_Tabs extends Element {
 		if ( ! empty( $settings['openTabOn'] ) ) {
 			$this->set_attribute( '_root', 'data-open-on', $settings['openTabOn'] );
 		}
+
+		// Expand item on page load (@since 1.12)
+		$this->set_attribute( '_root', 'data-open-tab', ! isset( $settings['openTab'] ) ? 0 : $settings['openTab'] );
 
 		// Render
 		$output  = "<div {$this->render_attributes( '_root' )}>";

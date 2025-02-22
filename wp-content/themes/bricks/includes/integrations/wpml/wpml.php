@@ -28,6 +28,7 @@ class Wpml {
 
 		add_filter( 'wpml_page_builder_support_required', [ $this, 'wpml_page_builder_support_required' ], 10, 1 );
 		add_action( 'wpml_page_builder_register_strings', [ $this, 'wpml_page_builder_register_strings' ], 10, 2 );
+		add_action( 'wpml_pro_translation_completed', [ $this, 'handle_translation_completed_no_strings' ], 10, 3 );
 
 		/**
 		 * Using a closure to ensure this function is only triggered from the 'wpml_page_builder_string_translated' hook
@@ -69,6 +70,58 @@ class Wpml {
 
 		// Apply filter to each term name (@since 1.11)
 		add_filter( 'bricks/builder/term_name', [ $this, 'add_language_to_term_name' ], 10, 3 );
+	}
+
+
+	/**
+	 * Handle WPML translation completion ONLY when there are no strings to translate
+	 * This is a fallback for when wpml_page_builder_register_strings is not triggered
+	 *
+	 * @param int    $new_post_id     ID of the translated post.
+	 * @param array  $fields          Translated fields.
+	 * @param string $original_post   Original post data.
+	 *
+	 * @since 1.12
+	 */
+	public function handle_translation_completed_no_strings( $new_post_id, $fields, $original_post ) {
+		// Skip if 'wpml_page_builder_string_translated' already handled duplication
+		if ( did_action( 'wpml_page_builder_string_translated' ) ) {
+			return;
+		}
+
+		$original_post_id = $original_post->original_doc_id ?? false;
+
+		if ( ! $original_post_id ) {
+			return;
+		}
+
+		// Skip if not processing a Bricks post
+		if ( ! $this->wpml_pb_is_page_builder_page( false, get_post( $original_post_id ) ) ) {
+			return;
+		}
+
+		// Meta keys to copy from original post to translation
+		$meta_keys = [
+			BRICKS_DB_PAGE_CONTENT,
+			BRICKS_DB_PAGE_HEADER,
+			BRICKS_DB_PAGE_FOOTER,
+			BRICKS_DB_TEMPLATE_TYPE,
+			BRICKS_DB_TEMPLATE_SETTINGS,
+			BRICKS_DB_PAGE_SETTINGS,
+		];
+
+		// Copy each meta key using WPML's helper function
+		foreach ( $meta_keys as $meta_key ) {
+			$meta_value = get_post_meta( $original_post_id, $meta_key, true );
+			if ( $meta_value ) {
+				update_post_meta( $new_post_id, $meta_key, $meta_value );
+			}
+		}
+
+		// Clear unique inline CSS if using file-based CSS loading
+		if ( Database::get_setting( 'cssLoading' ) === 'file' ) {
+			\Bricks\Assets::$unique_inline_css = [];
+		}
 	}
 
 	/**
@@ -788,13 +841,27 @@ class Wpml {
 	 * @since 1.10
 	 */
 	public function filter_builder_edit_link( $url, $post_id ) {
-		if ( self::$is_active && $post_id ) {
-			$post_language_details = apply_filters( 'wpml_post_language_details', null, $post_id );
+		if ( empty( $url ) || empty( $post_id ) || ! is_numeric( $post_id ) ) {
+			return $url;
+		}
 
-			if ( $post_language_details && isset( $post_language_details['language_code'] ) ) {
-				$lang_code = $post_language_details['language_code'];
-				$url       = apply_filters( 'wpml_permalink', $url, $lang_code );
-			}
+		if ( ! get_post( $post_id ) ) {
+			return $url;
+		}
+
+		$post_language_details = apply_filters( 'wpml_post_language_details', null, $post_id );
+
+		// Verify we got a valid array/object response and it has the required language_code
+		if ( ! empty( $post_language_details ) &&
+			is_array( $post_language_details ) &&
+			isset( $post_language_details['language_code'] ) &&
+			! empty( $post_language_details['language_code'] )
+		) {
+
+			// Sanitize the language code
+			$lang_code = sanitize_key( $post_language_details['language_code'] );
+
+			$url = apply_filters( 'wpml_permalink', $url, $lang_code );
 		}
 
 		return $url;

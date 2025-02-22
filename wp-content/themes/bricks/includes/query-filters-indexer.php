@@ -1,6 +1,8 @@
 <?php
 namespace Bricks;
 
+use Error;
+
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
 class Query_Filters_Indexer {
@@ -209,87 +211,247 @@ class Query_Filters_Indexer {
 			return;
 		}
 
-		// Get index args
-		$args = self::get_index_args( $filter_source, $filter_settings );
+		// 'customField' source can choose term or user
+		$field_type = $filter_settings['sourceFieldType'] ?? 'post';
+
+		// Default query type
+		$query_type = 'wp_query';
+
+		// Determine the query type based on filter_source and field_type
+		if ( $filter_source === 'customField' || $filter_source === 'wpField' ) {
+			if ( $field_type === 'term' ) {
+				$query_type = 'wp_term_query';
+			} elseif ( $field_type === 'user' ) {
+				$query_type = 'wp_user_query';
+			}
+		}
 
 		$total          = $job['total'] ?? 0;
 		$processing_row = $job['processed'] ?? 0;
 
-		// STEP: Start the index process, each time index 100 posts and update the job
-		while ( $processing_row < $total ) {
-			if ( self::resource_limit_reached() ) {
-				// Resource limits reached, stop indexing, update the processing row and exit
-				$this->update_job( $job, [ 'processed' => $processing_row ] );
-				break;
-			}
+		// Get index args
+		$args = self::get_index_args( $filter_source, $filter_settings, $query_type );
 
-			// Get 100 posts
-			$args['posts_per_page'] = 100;
-			$args['offset']         = $processing_row;
-			if ( $filter_source === 'wpField' ) {
-				// We need the whole post object
-				unset( $args['fields'] );
-			}
-			$query = new \WP_Query( $args );
-			$posts = $query->posts;
+		if ( $query_type === 'wp_query' ) {
 
-			/**
-			 * No posts found for current processing row
-			 *
-			 * Maybe some posts are deleted while indexing.
-			 *
-			 * @since 1.11
-			 */
-			if ( empty( $posts ) ) {
-				// STEP: Check the total posts again for current args without offset
-				$args['posts_per_page'] = -1;
-				$args['offset']         = 0;
-				$query                  = new \WP_Query( $args );
-				$new_total              = count( $query->posts );
-
-				// Release memory
-				unset( $query );
-
-				if ( $processing_row >= $new_total ) {
-					// Processing row is more than or equal to the new total, consider the job as completed
-					$total = $new_total;
-				} else {
-					// Something not right, remove the job
-					$this->remove_job( $job );
-					// Remove indexed records for this element
-					$this->query_filters->remove_index_rows(
-						[
-							'filter_id' => $filter_id,
-						]
-					);
-					// Add a new job
-					$this->add_job( $job, true );
-				}
-
-				// Exit while loop
-				break;
-			}
-
-			// Index the posts
-			foreach ( $posts as $post ) {
+			// STEP: Start the index process, each time index 100 posts and update the job
+			while ( $processing_row < $total ) {
 				if ( self::resource_limit_reached() ) {
 					// Resource limits reached, stop indexing, update the processing row and exit
 					$this->update_job( $job, [ 'processed' => $processing_row ] );
 					break;
 				}
 
-				// Index the post
-				$this->index_post_by_job( $post, $job );
+				// Get 100 posts
+				$args['posts_per_page'] = 100;
+				$args['offset']         = $processing_row;
+				if ( $filter_source === 'wpField' ) {
+					// We need the whole post object
+					unset( $args['fields'] );
+				}
+				$query = new \WP_Query( $args );
+				$posts = $query->posts;
 
-				$processing_row++;
+				/**
+				 * No posts found for current processing row
+				 *
+				 * Maybe some posts are deleted while indexing.
+				 *
+				 * @since 1.11
+				 */
+				if ( empty( $posts ) ) {
+					// STEP: Check the total posts again for current args without offset
+					$args['posts_per_page'] = -1;
+					$args['offset']         = 0;
+					$query                  = new \WP_Query( $args );
+					$new_total              = count( $query->posts );
+
+					// Release memory
+					unset( $query );
+
+					if ( $processing_row >= $new_total ) {
+						// Processing row is more than or equal to the new total, consider the job as completed
+						$total = $new_total;
+					} else {
+						// Something not right, remove the job
+						$this->remove_job( $job );
+						// Remove indexed records for this element
+						$this->query_filters->remove_index_rows(
+							[
+								'filter_id' => $filter_id,
+							]
+						);
+						// Add a new job
+						$this->add_job( $job, true );
+					}
+
+					// Exit while loop
+					break;
+				}
+
+				// Index the posts
+				foreach ( $posts as $post ) {
+					if ( self::resource_limit_reached() ) {
+						// Resource limits reached, stop indexing, update the processing row and exit
+						$this->update_job( $job, [ 'processed' => $processing_row ] );
+						break;
+					}
+
+					// Index the post
+					$this->index_post_by_job( $post, $job );
+
+					$processing_row++;
+				}
+
+				// Update the job
+				$this->update_job( $job, [ 'processed' => $processing_row ] );
+
+				// Release memory
+				unset( $query );
+				unset( $posts );
 			}
 
-			// Update the job
-			$this->update_job( $job, [ 'processed' => $processing_row ] );
+		}
 
-			// Release memory
-			unset( $query );
-			unset( $posts );
+		elseif ( $query_type === 'wp_term_query' ) {
+
+			// STEP: Start the index process, each time index 100 terms and update the job
+			while ( $processing_row < $total ) {
+				if ( self::resource_limit_reached() ) {
+					// Resource limits reached, stop indexing, update the processing row and exit
+					$this->update_job( $job, [ 'processed' => $processing_row ] );
+					break;
+				}
+
+				// Get 100 terms
+				$args['number'] = 100;
+				$args['offset'] = $processing_row;
+
+				$terms = new \WP_Term_Query( $args );
+				$terms = $terms->get_terms();
+
+				/**
+				 * No terms found for current processing row
+				 *
+				 * Maybe some terms are deleted while indexing.
+				 */
+				if ( empty( $terms ) ) {
+					// STEP: Check the total terms again for current args without offset
+					$args['number'] = 0;
+					$args['offset'] = 0;
+					$terms          = new \WP_Term_Query( $args );
+					$terms          = $terms->get_terms();
+					$new_total      = count( $terms );
+
+					// Release memory
+					unset( $terms );
+
+					if ( $processing_row >= $new_total ) {
+						// Processing row is more than or equal to the new total, consider the job as completed
+						$total = $new_total;
+					} else {
+						// Something not right, remove the job
+						$this->remove_job( $job );
+						// Remove indexed records for this element
+						$this->query_filters->remove_index_rows(
+							[
+								'filter_id' => $filter_id,
+							]
+						);
+						// Add a new job
+						$this->add_job( $job, true );
+					}
+				}
+
+				// Index the terms
+				foreach ( $terms as $term ) {
+					if ( self::resource_limit_reached() ) {
+						// Resource limits reached, stop indexing, update the processing row and exit
+						$this->update_job( $job, [ 'processed' => $processing_row ] );
+						break;
+					}
+
+					// Index the term
+					$this->index_term_by_job( $term, $job );
+
+					$processing_row++;
+				}
+
+				// Release memory
+				unset( $terms );
+			}
+		}
+
+		elseif ( $query_type === 'wp_user_query' ) {
+
+			// STEP: Start the index process, each time index 100 users and update the job
+			while ( $processing_row < $total ) {
+				if ( self::resource_limit_reached() ) {
+					// Resource limits reached, stop indexing, update the processing row and exit
+					$this->update_job( $job, [ 'processed' => $processing_row ] );
+					break;
+				}
+
+				// Get 100 users
+				$args['number'] = 100;
+				$args['offset'] = $processing_row;
+				if ( $filter_source === 'wpField' ) {
+					// We need the whole user object
+					unset( $args['fields'] );
+				}
+				$users = new \WP_User_Query( $args );
+				$users = $users->get_results();
+
+				/**
+				 * No users found for current processing row
+				 *
+				 * Maybe some users are deleted while indexing.
+				 */
+				if ( empty( $users ) ) {
+					// STEP: Check the total users again for current args without offset
+					$args['number'] = -1;
+					$args['offset'] = 0;
+					$users          = new \WP_User_Query( $args );
+					$users          = $users->get_results();
+					$new_total      = count( $users );
+
+					// Release memory
+					unset( $users );
+
+					if ( $processing_row >= $new_total ) {
+						// Processing row is more than or equal to the new total, consider the job as completed
+						$total = $new_total;
+					} else {
+						// Something not right, remove the job
+						$this->remove_job( $job );
+						// Remove indexed records for this element
+						$this->query_filters->remove_index_rows(
+							[
+								'filter_id' => $filter_id,
+							]
+						);
+						// Add a new job
+						$this->add_job( $job, true );
+					}
+				}
+
+				// Index the users
+				foreach ( $users as $user ) {
+					if ( self::resource_limit_reached() ) {
+						// Resource limits reached, stop indexing, update the processing row and exit
+						$this->update_job( $job, [ 'processed' => $processing_row ] );
+						break;
+					}
+
+					// Index the user
+					$this->index_user_by_job( $user, $job );
+
+					$processing_row++;
+				}
+
+				// Release memory
+				unset( $users );
+			}
 		}
 
 		// STEP: Job completed
@@ -317,7 +479,7 @@ class Query_Filters_Indexer {
 						break;
 
 					case 'user':
-						// not implemented
+						$selected_field = $filter_settings['wpUserField'] ?? false;
 						break;
 
 					case 'term':
@@ -362,90 +524,118 @@ class Query_Filters_Indexer {
 	/**
 	 * Get index args for the job
 	 */
-	private static function get_index_args( $filter_source, $filter_settings ) {
-		// NOTE: 'exclude_from_search' => false not in use as we might miss some post types which are excluded from search
-		$post_types = get_post_types();
+	private static function get_index_args( $filter_source = '', $filter_settings = [], $query_type = 'wp_query' ) {
 
-		$args = [
-			'post_type'        => $post_types,
-			'post_status'      => 'any', // cannot use 'publish' as we might miss some posts
-			'posts_per_page'   => -1,
-			'fields'           => 'ids',
-			'orderby'          => 'ID',
-			'cache_results'    => false,
-			'no_found_rows'    => true,
-			'suppress_filters' => true, // Avoid filters (@since 1.9.10)
-			'lang'             => '', // Polylang (@since 1.9.10)
-		];
+		if ( $query_type === 'wp_query' ) {
+			// NOTE: 'exclude_from_search' => false not in use as we might miss some post types which are excluded from search
+			$post_types = array_diff(
+				get_post_types(),
+				[ 'revision', 'custom_css', 'customize_changeset', 'oembed_cache', 'user_request' ], // Not necessary to index these post types as nobody will use filters on these (@since 1.x)
+			);
 
-		switch ( $filter_source ) {
-			case 'wpField':
-				$field_type = $filter_settings['sourceFieldType'] ?? 'post';
+			$args = [
+				'post_type'        => $post_types,
+				'post_status'      => 'any', // cannot use 'publish' as we might miss some posts
+				'posts_per_page'   => -1,
+				'fields'           => 'ids',
+				'orderby'          => 'ID',
+				'cache_results'    => false,
+				'no_found_rows'    => true,
+				'suppress_filters' => true, // Avoid filters (@since 1.9.10)
+				'lang'             => '', // Polylang (@since 1.9.10)
+			];
 
-				if ( ! $field_type ) {
-					return;
-				}
+			switch ( $filter_source ) {
+				case 'wpField':
+					$field_type = $filter_settings['sourceFieldType'] ?? 'post';
 
-				$selected_field = false;
-				switch ( $field_type ) {
-					case 'post':
-						$selected_field = $filter_settings['wpPostField'] ?? false;
-						break;
+					if ( ! $field_type ) {
+						return;
+					}
 
-					case 'user':
-						// not implemented
-						break;
+					$selected_field = false;
+					switch ( $field_type ) {
+						case 'post':
+							$selected_field = $filter_settings['wpPostField'] ?? false;
+							break;
 
-					case 'term':
-						// not implemented
-						break;
-				}
+						case 'user':
+							// not implemented
+							break;
 
-				if ( ! $selected_field ) {
-					return;
-				}
+						case 'term':
+							// not implemented
+							break;
+					}
 
-				// No need to add any query for wpField, all posts will be indexed
+					if ( ! $selected_field ) {
+						return;
+					}
 
-				break;
+					// No need to add any query for wpField, all posts will be indexed
 
-			case 'customField':
-				$meta_key = $filter_settings['customFieldKey'] ?? false;
+					break;
 
-				if ( ! $meta_key ) {
-					return;
-				}
+				case 'customField':
+					$meta_key = $filter_settings['customFieldKey'] ?? false;
 
-				// Add meta query
-				$args['meta_query'] = [
-					[
-						'key'     => $meta_key,
-						'compare' => 'EXISTS'
-					],
-				];
+					if ( ! $meta_key ) {
+						return;
+					}
 
-				break;
+					// Add meta query
+					$args['meta_query'] = [
+						[
+							'key'     => $meta_key,
+							'compare' => 'EXISTS'
+						],
+					];
 
-			default:
-			case 'taxonomy':
-				$filter_taxonomy = $filter_settings['filterTaxonomy'] ?? false;
+					break;
 
-				if ( ! $filter_taxonomy ) {
-					return;
-				}
+				default:
+				case 'taxonomy':
+					$filter_taxonomy = $filter_settings['filterTaxonomy'] ?? false;
 
-				// Add taxonomy query
-				$args['tax_query'] = [
-					[
-						'taxonomy' => $filter_taxonomy,
-						'operator' => 'EXISTS'
-					],
-				];
-				break;
+					if ( ! $filter_taxonomy ) {
+						return;
+					}
+
+					// Add taxonomy query
+					$args['tax_query'] = [
+						[
+							'taxonomy' => $filter_taxonomy,
+							'operator' => 'EXISTS'
+						],
+					];
+					break;
+			}
+
+		}
+
+		elseif ( $query_type === 'wp_term_query' ) {
+			$args = [
+				'hide_empty'    => false,
+				'number'        => 0,
+				'offset'        => 0,
+				'fields'        => 'ids',
+				'orderby'       => 'id',
+				'cache_results' => false,
+				'lang'          => '',
+			];
+		}
+
+		elseif ( $query_type === 'wp_user_query' ) {
+			$args = [
+				'number'  => -1,
+				'offset'  => 0,
+				'fields'  => 'ID',
+				'orderby' => 'ID',
+			];
 		}
 
 		// NOTE: Undocumented - Not ready for third-party plugins (@since 1.11.1)
-		return apply_filters( 'bricks/query_filters/index_args', $args, $filter_source, $filter_settings );
+		return apply_filters( 'bricks/query_filters/index_args', $args, $filter_source, $filter_settings, $query_type );
 	}
 
 	/**
@@ -456,6 +646,7 @@ class Query_Filters_Indexer {
 		$filter_settings = $job['settings'] ?? false;
 		$job_settings    = $job['job_details'] ?? false;
 		$filter_id       = $job['filter_id'] ?? false;
+
 		if ( ! $filter_id || ! $filter_settings || ! $job_settings ) {
 			return;
 		}
@@ -496,7 +687,7 @@ class Query_Filters_Indexer {
 					return;
 				}
 
-				$post_rows = $this->generate_wp_field_index_row( $post, $selected_field );
+				$post_rows = $this->query_filters::generate_post_field_index_rows( $post, $selected_field );
 
 				// Build $rows_to_insert, insert filter_id
 				if ( ! empty( $post_rows ) ) {
@@ -524,7 +715,7 @@ class Query_Filters_Indexer {
 				$provider = $filter_settings['fieldProvider'] ?? 'none';
 
 				// Centralize the function (@since 1.11.1)
-				$meta_rows = $this->query_filters::generate_custom_field_index_rows( $post, $meta_key, $provider );
+				$meta_rows = $this->query_filters::generate_custom_field_index_rows( $post, $meta_key, $provider, 'post' );
 
 				// Build $rows_to_insert, insert filter_id
 				if ( ! empty( $meta_rows ) ) {
@@ -577,6 +768,161 @@ class Query_Filters_Indexer {
 	}
 
 	/**
+	 * Generate index rows for a term based on a job (a filter element)
+	 * $term: term object
+	 */
+	private function index_term_by_job( $term, $job ) {
+		$filter_settings = $job['settings'] ?? false;
+		$job_settings    = $job['job_details'] ?? false;
+		$filter_id       = $job['filter_id'] ?? false;
+
+		if ( ! $filter_id || ! $filter_settings || ! $job_settings ) {
+			return;
+		}
+
+		$filter_settings = json_decode( $filter_settings, true );
+		$filter_source   = $filter_settings['filterSource'] ?? false;
+
+		if ( ! $filter_source ) {
+			return;
+		}
+
+		$rows_to_insert = [];
+
+		switch ( $filter_source ) {
+			case 'wpField':
+				break;
+
+			case 'customField':
+				$meta_key = $filter_settings['customFieldKey'] ?? false;
+
+				if ( ! $meta_key ) {
+					return;
+				}
+
+				$provider = $filter_settings['fieldProvider'] ?? 'none';
+
+				$meta_rows = $this->query_filters::generate_custom_field_index_rows( $term, $meta_key, $provider, 'term' );
+
+				// Build $rows_to_insert, insert filter_id
+				if ( ! empty( $meta_rows ) ) {
+					$rows_to_insert = array_merge(
+						$rows_to_insert,
+						array_map(
+							function( $row ) use ( $filter_id ) {
+								$row['filter_id'] = $filter_id;
+								return $row;
+							},
+							$meta_rows
+						)
+					);
+				}
+				break;
+
+			default:
+			case 'taxonomy':
+				break;
+
+		}
+
+		if ( empty( $rows_to_insert ) ) {
+			return;
+		}
+
+		// Insert rows
+		$this->query_filters::insert_index_rows( $rows_to_insert );
+	}
+
+	/**
+	 * Generate index rows for a user based on a job (a filter element)
+	 * $user: user id || user object (wpField source only)
+	 */
+	private function index_user_by_job( $user, $job ) {
+		$filter_settings = $job['settings'] ?? false;
+		$job_settings    = $job['job_details'] ?? false;
+		$filter_id       = $job['filter_id'] ?? false;
+
+		if ( ! $filter_id || ! $filter_settings || ! $job_settings ) {
+			return;
+		}
+
+		$filter_settings = json_decode( $filter_settings, true );
+		$filter_source   = $filter_settings['filterSource'] ?? false;
+
+		if ( ! $filter_source ) {
+			return;
+		}
+
+		$rows_to_insert = [];
+
+		switch ( $filter_source ) {
+			case 'wpField':
+				$field_type = $filter_settings['sourceFieldType'] ?? 'post';
+
+				if ( ! $field_type || $field_type !== 'user' ) {
+					return;
+				}
+
+				$selected_field = $filter_settings['wpUserField'] ?? false;
+
+				if ( ! $selected_field ) {
+					return;
+				}
+
+				$user_rows = $this->query_filters::generate_user_field_index_rows( $user, $selected_field );
+
+				// Build $rows_to_insert, insert filter_id
+				if ( ! empty( $user_rows ) ) {
+					$rows_to_insert = array_merge(
+						$rows_to_insert,
+						array_map(
+							function( $row ) use ( $filter_id ) {
+								$row['filter_id'] = $filter_id;
+								return $row;
+							},
+							$user_rows
+						)
+					);
+				}
+
+				break;
+
+			case 'customField':
+				$meta_key = $filter_settings['customFieldKey'] ?? false;
+
+				if ( ! $meta_key ) {
+					return;
+				}
+
+				$provider = $filter_settings['fieldProvider'] ?? 'none';
+
+				$meta_rows = $this->query_filters::generate_custom_field_index_rows( $user, $meta_key, $provider, 'user' );
+
+				// Build $rows_to_insert, insert filter_id
+				if ( ! empty( $meta_rows ) ) {
+					$rows_to_insert = array_merge(
+						$rows_to_insert,
+						array_map(
+							function( $row ) use ( $filter_id ) {
+								$row['filter_id'] = $filter_id;
+								return $row;
+							},
+							$meta_rows
+						)
+					);
+				}
+				break;
+		}
+
+		if ( empty( $rows_to_insert ) ) {
+			return;
+		}
+
+		// Insert rows
+		$this->query_filters::insert_index_rows( $rows_to_insert );
+	}
+
+	/**
 	 * Generate taxonomy index rows
 	 */
 	private function generate_taxonomy_index_row( $post_id, $taxonomy ) {
@@ -600,43 +946,6 @@ class Query_Filters_Indexer {
 				'filter_value_parent'  => $term->parent ?? 0,
 			];
 		}
-
-		return $rows;
-	}
-
-	/**
-	 * Generate wp field index rows
-	 */
-	private function generate_wp_field_index_row( $post, $post_field ) {
-		$rows = [];
-
-		if ( ! is_a( $post, 'WP_Post' ) ) {
-			return $rows;
-		}
-
-		$post_id = $post->ID;
-
-		// Change field name if needed so we can get it from post object
-		$post_field = $post_field === 'post_id' ? 'ID' : $post_field;
-
-		$value         = $post->$post_field ?? false;
-		$display_value = $value ?? 'None';
-
-		// If post field is post_author, get the author name
-		if ( $post_field === 'post_author' ) {
-			$author        = get_user_by( 'id', $value );
-			$display_value = $author->display_name ?? 'None';
-		}
-
-		$rows[] = [
-			'filter_id'            => '',
-			'object_id'            => $post_id,
-			'object_type'          => 'post',
-			'filter_value'         => $value,
-			'filter_value_display' => $display_value,
-			'filter_value_id'      => 0,
-			'filter_value_parent'  => 0,
-		];
 
 		return $rows;
 	}
@@ -677,15 +986,49 @@ class Query_Filters_Indexer {
 			return;
 		}
 
+		// 'customField' source can choose term or user
+		$field_type = $filter_settings['sourceFieldType'] ?? 'post';
+
+		// Default query type
+		$query_type = 'wp_query';
+
+		// Determine the query type based on filter_source and field_type
+		if ( $filter_source === 'customField' || $filter_source === 'wpField' ) {
+			if ( $field_type === 'term' ) {
+				$query_type = 'wp_term_query';
+			} elseif ( $field_type === 'user' ) {
+				$query_type = 'wp_user_query';
+			}
+		}
+
 		// Get index args
-		$args = self::get_index_args( $filter_source, $filter_settings );
+		$args = self::get_index_args( $filter_source, $filter_settings, $query_type );
 
 		// Get total rows
-		$query      = new \WP_Query( $args );
-		$total_rows = count( $query->posts );
+		if ( $query_type === 'wp_query' ) {
+			$query      = new \WP_Query( $args );
+			$total_rows = count( $query->posts );
+			// Release memory
+			unset( $query );
+		}
 
-		// Release memory
-		unset( $query );
+		elseif ( $query_type === 'wp_term_query' ) {
+			$term_query = new \WP_Term_Query( $args );
+			$terms      = $term_query->get_terms();
+			$total_rows = count( $terms );
+
+			// Release memory
+			unset( $term_query );
+			unset( $terms );
+		}
+
+		elseif ( $query_type === 'wp_user_query' ) {
+			$user_query = new \WP_User_Query( $args );
+			$total_rows = $user_query->get_total();
+
+			// Release memory
+			unset( $user_query );
+		}
 
 		if ( $total_rows === 0 ) {
 			return;
@@ -886,8 +1229,8 @@ class Query_Filters_Indexer {
 		$memory_limit = ini_get( 'memory_limit' );
 		$memory_usage = memory_get_usage( true );
 
-		// if not set or if set to '0' (unlimited)
-		if ( ! $memory_limit || $memory_limit == -1 ) {
+		// if not set or if set to '0' or '-1' (unlimited)
+		if ( ! $memory_limit || $memory_limit == 0 || $memory_limit == -1 ) {
 			$memory_limit = '512M';
 		}
 
@@ -900,8 +1243,8 @@ class Query_Filters_Indexer {
 		$time_limit = ini_get( 'max_execution_time' );
 		$time_usage = microtime( true ) - $_SERVER['REQUEST_TIME_FLOAT'];
 
-		// Use default time limit if not set or if set to '0' (unlimited)
-		if ( ! $time_limit || $time_limit == 0 ) {
+		// Use default time limit if not set or if set to '0' or '-1' (unlimited)
+		if ( ! $time_limit || $time_limit == 0 || $time_limit == -1 ) {
 			$time_limit = $default_time_limit;
 		}
 

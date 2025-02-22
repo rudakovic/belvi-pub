@@ -87,7 +87,7 @@ class Product_Add_To_Cart extends Element {
 			'css'   => [
 				[
 					'property' => 'border',
-					'selector' => '.cart .variations tr',
+					'selector' => '.cart .variations tr:not(:has(.reset_variations))',
 				]
 			],
 		];
@@ -565,6 +565,16 @@ class Product_Add_To_Cart extends Element {
 				[
 					'title'       => esc_html__( 'For better preview select content to show.', 'bricks' ),
 					'description' => esc_html__( 'Go to: Settings > Template Settings > Populate Content', 'bricks' ),
+				]
+			);
+		}
+
+		// Return: Product is out of stock and "Hide stock" is enabled (@since 1.12)
+		if ( isset( $settings['hideStock'] ) && ! $product->is_in_stock() ) {
+			return $this->render_element_placeholder(
+				[
+					'title'       => esc_html__( 'Product is out of stock.', 'bricks' ),
+					'description' => esc_html__( 'Go to: WooCommerce > Products > Inventory', 'bricks' ),
 				]
 			);
 		}

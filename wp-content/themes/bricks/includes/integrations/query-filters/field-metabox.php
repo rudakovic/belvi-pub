@@ -18,13 +18,15 @@ class Field_Metabox {
 		// After provider tags are registered, before query-filters set active_filters_query_vars (query-filters.php)
 		add_action( 'init', [ $this, 'init' ], 10002 );
 
-		add_action( 'bricks/query_filters/index_post/before', [ $this, 'maybe_register_dd_provider' ], 10, 3 );
+		add_action( 'bricks/query_filters/index_post/before', [ $this, 'maybe_register_dd_provider' ], 10 );
+		add_action( 'bricks/query_filters/index_user/before', [ $this, 'maybe_register_dd_provider' ], 10 );
 
 		add_filter( 'bricks/query_filters/index_args', [ $this, 'index_args' ], 10, 3 );
 
 		add_filter( 'bricks/query_filters/index_post/meta_exists', [ $this, 'index_post_meta_exists' ], 10, 4 );
+		add_filter( 'bricks/query_filters/index_user/meta_exists', [ $this, 'index_user_meta_exists' ], 10, 4 );
 
-		add_filter( 'bricks/query_filters/custom_field_index_rows', [ $this, 'custom_field_index_rows' ], 10, 4 );
+		add_filter( 'bricks/query_filters/custom_field_index_rows', [ $this, 'custom_field_index_rows' ], 10, 5 );
 
 		add_action( 'bricks/filter_element/before_set_data_source_from_custom_field', [ $this, 'modify_custom_field_choices' ] );
 
@@ -106,6 +108,7 @@ class Field_Metabox {
 			// Get the real meta key
 			$meta_key = $this->get_meta_key_by_dd_tag( $meta_key );
 
+			// TODO: For 'taxonomy' field type, no meta key will be saved. Need to handle this case, currently all taxonomy fields will be skipped
 			$args['meta_query'] = [
 				[
 					'key'     => $meta_key,
@@ -136,12 +139,30 @@ class Field_Metabox {
 	}
 
 	/**
+	 * Decide whether to index the user based on the meta key
+	 * Index the user if the meta key exists
+	 *
+	 * @return bool
+	 */
+	public function index_user_meta_exists( $index, $user_id, $meta_key, $provider ) {
+		if ( $provider !== $this->provider_key ) {
+			return $index;
+		}
+
+		// Get the real meta key
+		$meta_key = $this->get_meta_key_by_dd_tag( $meta_key );
+
+		// Check if the meta key exists
+		return metadata_exists( 'user', $user_id, $meta_key );
+	}
+
+	/**
 	 * Modify the index value based on the field type
 	 * Generate index rows for a given custom field
 	 *
 	 * @return array
 	 */
-	public function custom_field_index_rows( $rows, $post_id, $meta_key, $provider ) {
+	public function custom_field_index_rows( $rows, $object_id, $meta_key, $provider, $object_type ) {
 		if ( $provider !== $this->provider_key ) {
 			return $rows;
 		}
@@ -155,8 +176,16 @@ class Field_Metabox {
 		$field_settings              = $field_info['field'] ?? [];
 		$field_settings['brx_label'] = [];
 
+		$metabox_arg = '';
+
+		if ( in_array( $object_type, [ 'term', 'user' ], true ) ) {
+			$metabox_arg = [
+				'object_type' => $object_type,
+			];
+		}
+
 		// Use the actual meta key to get the value
-		$mb_value = rwmb_get_value( $meta_key, '', $post_id );
+		$mb_value = rwmb_get_value( $meta_key, $metabox_arg, $object_id );
 
 		if ( empty( $field_settings ) ) {
 			return $rows;
@@ -165,8 +194,7 @@ class Field_Metabox {
 		// Handle fields in a group
 		if ( $is_group_field && is_array( $mb_value ) ) {
 			// Try to find the value from $mb_value based on the field ID, field ID will be the key
-			$field_id = $field_settings['id'];
-
+			$field_id  = $field_settings['id'];
 			$new_value = [];
 			foreach ( $mb_value as $group ) {
 				if ( isset( $group[ $field_id ] ) ) {
@@ -174,12 +202,17 @@ class Field_Metabox {
 				}
 			}
 
+			// If no value found, try to get the value directly by using the field ID as the key
+			if ( empty( $new_value ) && isset( $mb_value[ $field_id ] ) ) {
+				$new_value = $mb_value[ $field_id ];
+			}
+
 			$mb_value = $new_value;
 		}
 
-		$field_type = $field_settings['type'] ?? 'text';
+		$mb_field_type = $field_settings['type'] ?? 'text';
 
-		switch ( $field_type ) {
+		switch ( $mb_field_type ) {
 			case 'radio':
 			case 'select':
 			case 'checkbox_list':
@@ -189,6 +222,7 @@ class Field_Metabox {
 
 			case 'post':
 			case 'taxonomy':
+			case 'taxonomy_advanced':
 			case 'user':
 				// Generate label for post, taxonomy, user
 				$mb_value = is_array( $mb_value ) ? $mb_value : [ $mb_value ];
@@ -196,23 +230,53 @@ class Field_Metabox {
 				// Generate label for post, taxonomy, user
 				foreach ( $mb_value as $key => $value ) {
 					$label = '';
-					switch ( $field_type ) {
+					switch ( $mb_field_type ) {
 						case 'post':
-							$post  = get_post( $value );
-							$label = is_a( $post, 'WP_Post' ) ? $post->post_title : '';
+							if ( is_a( $value, 'WP_Post' ) ) {
+								$post  = $value;
+								$value = $post->ID;
+								$label = $post->post_title;
+							}
+
+							else {
+								$post  = get_post( $value );
+								$label = is_a( $post, 'WP_Post' ) ? $post->post_title : '';
+							}
+
 							break;
 
 						case 'taxonomy':
-							$term  = get_term( $value );
-							$label = ! is_wp_error( $term ) && is_a( $term, 'WP_Term' ) ? $term->name : '';
+						case 'taxonomy_advanced':
+							if ( is_a( $value, 'WP_Term' ) ) {
+								$term  = $value;
+								$value = $term->term_id;
+								$label = $term->name;
+							}
+
+							else {
+								$term  = get_term( $value );
+								$label = ! is_wp_error( $term ) && is_a( $term, 'WP_Term' ) ? $term->name : '';
+							}
+
 							break;
 
 						case 'user':
-							$user  = get_user_by( 'ID', $value );
-							$label = is_a( $user, 'WP_User' ) ? $user->display_name : '';
+							if ( is_a( $value, 'WP_User' ) ) {
+								$user  = $value;
+								$value = $user->ID;
+								$label = $user->display_name;
+							}
+
+							else {
+								$user  = get_user_by( 'ID', $value );
+								$label = is_a( $user, 'WP_User' ) ? $user->display_name : '';
+							}
+
 							break;
 					}
 
+					// Update $mb_value with the actual value (ID)
+					$mb_value[ $key ]                      = $value;
 					$field_settings['brx_label'][ $value ] = $label;
 				}
 
@@ -220,7 +284,7 @@ class Field_Metabox {
 
 			case 'date':
 			case 'datetime':
-				// case 'time':
+			case 'time':
 				if ( ! empty( $mb_value ) ) {
 
 					// STEP: Force $mb_value to be an array
@@ -231,7 +295,7 @@ class Field_Metabox {
 					$date_format = 'Y-m-d';
 					$time_format = 'H:i';
 
-					switch ( $field_type ) {
+					switch ( $mb_field_type ) {
 						case 'date':
 							$format = $date_format;
 							break;
@@ -249,7 +313,7 @@ class Field_Metabox {
 					}
 
 					$db_value  = [];
-					$db_format = $field_type == 'date' ? 'Y-m-d' : 'Y-m-d H:i';
+					$db_format = $mb_field_type == 'date' ? 'Y-m-d' : 'Y-m-d H:i';
 					// STEP: Try convert the $value to DateTime object in UTC and save it to $db_value
 					foreach ( $mb_value as $key => $val ) {
 						// If this is a group sub-field and saved as timestamp, the $row is an array, pick the timestamp value
@@ -302,8 +366,8 @@ class Field_Metabox {
 		foreach ( $final_values as $value ) {
 			$rows[] = [
 				'filter_id'            => '',
-				'object_id'            => $post_id,
-				'object_type'          => 'post',
+				'object_id'            => $object_id,
+				'object_type'          => $object_type,
 				'filter_value'         => $value,
 				'filter_value_display' => $get_label( $value, $field_settings ),
 				'filter_value_id'      => 0,
@@ -330,6 +394,29 @@ class Field_Metabox {
 
 		$field_settings = $this->get_field_settings_from_dd_provider( $custom_field_key, 'field' );
 		$mb_choices     = $field_settings['options'] ?? [];
+		$mb_field_type  = $field_settings['type'] ?? 'text';
+
+		// Taxonomy field can have choices from the terms, build the choices from the terms
+		if ( in_array( $mb_field_type, [ 'taxonomy', 'taxonomy_advanced' ], true ) ) {
+			$taxonomy = $field_settings['taxonomy'] ?? '';
+			if ( ! $taxonomy ) {
+				return;
+			}
+
+			$terms = get_terms(
+				[
+					'taxonomy'   => $taxonomy,
+					'hide_empty' => false,
+				]
+			);
+
+			if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+				$mb_choices = [];
+				foreach ( $terms as $term ) {
+					$mb_choices[ $term->term_id ] = $term->name;
+				}
+			}
+		}
 
 		// Return if no choices
 		if ( empty( $mb_choices ) ) {
@@ -343,7 +430,7 @@ class Field_Metabox {
 			$matched_choice = array_filter(
 				$ori_choices,
 				function( $choice ) use ( $mb_value ) {
-					return isset( $choice['filter_value'] ) && $choice['filter_value'] === $mb_value;
+					return isset( $choice['filter_value'] ) && \Bricks\Filter_Element::is_option_value_matched( $choice['filter_value'], $mb_value );
 				}
 			);
 
@@ -370,14 +457,14 @@ class Field_Metabox {
 
 		$settings         = $filter['settings'];
 		$filter_value     = $filter['value'];
-		$field_type       = $settings['sourceFieldType'] ?? 'post';
+		$fiield_type      = $settings['sourceFieldType'] ?? 'post';
 		$custom_field_key = $settings['customFieldKey'] ?? false;
 		$combine_logic    = $settings['filterMultiLogic'] ?? 'OR';
 
 		$instance_name = $filter['instance_name'];
 
-		if ( isset( $settings['filterCompareOperator'] ) ) {
-			$compare_operator = $settings['filterCompareOperator'];
+		if ( isset( $settings['fieldCompareOperator'] ) ) {
+			$compare_operator = $settings['fieldCompareOperator'];
 		} else {
 			// Default compare operator for filter-select and filter-radio is =, for others is IN
 			$compare_operator = in_array( $instance_name, [ 'filter-select', 'filter-radio' ], true ) ? '=' : 'IN';
@@ -388,14 +475,37 @@ class Field_Metabox {
 		$custom_field_key = $this->get_meta_key_by_dd_tag( $dd_tag );
 		$field_info       = $this->get_field_settings_from_dd_provider( $dd_tag );
 		$field_settings   = $field_info['field'] ?? [];
-		$field_type       = $field_settings['type'] ?? 'text';
+		$mb_field_type    = $field_settings['type'] ?? 'text';
+		$is_timestamp     = false;
 
 		// Rebuild meta query
 		$meta_query = [];
 
-		$is_group = isset( $field_info['parent']['id'] );
+		$is_multiple    = isset( $field_info['parent']['id'] ); // Group field saved in serialized format
+		$sprintf_format = '"%s"'; // For serialized value
 
-		if ( ! $is_group ) {
+		// Certain field types are multiple
+		switch ( $mb_field_type ) {
+			case 'taxonomy':
+			case 'taxonomy_advanced':
+				$is_multiple = isset( $field_settings['multiple'] ) && $field_settings['multiple'];
+
+				if ( $is_multiple ) {
+					$sprintf_format = '%s'; // Taxonomy field value as comma separated string only
+				}
+				break;
+
+			case 'date':
+			case 'datetime':
+				$is_timestamp = ! empty( $field_settings['timestamp'] );
+				if ( $is_timestamp ) {
+					// Value saved as timestamp, convert to timestamp (@since 1.12)
+					$filter_value = strtotime( $filter_value );
+				}
+				break;
+		}
+
+		if ( ! $is_multiple ) {
 
 			if ( $combine_logic === 'AND' && is_array( $filter_value ) && $instance_name === 'filter-checkbox' ) {
 				// In Metabox, multiple values saved as multiple rows with the same meta key
@@ -405,6 +515,11 @@ class Field_Metabox {
 						'value'   => $value,
 						'compare' => $compare_operator,
 					];
+
+					// Handle timestamp value (@since 1.12)
+					if ( $is_timestamp ) {
+						$meta_query['type'] = 'NUMERIC';
+					}
 				}
 
 				// Add relation
@@ -418,6 +533,11 @@ class Field_Metabox {
 					'value'   => $filter_value,
 					'compare' => $compare_operator,
 				];
+
+				// Handle timestamp value (@since 1.12)
+				if ( $is_timestamp ) {
+					$meta_query['type'] = 'NUMERIC';
+				}
 			}
 		}
 
@@ -427,7 +547,7 @@ class Field_Metabox {
 				// Radio or select filter, $filter_value is a string
 				$meta_query = [
 					'key'     => $custom_field_key,
-					'value'   => sprintf( '"%s"', $filter_value ),
+					'value'   => sprintf( $sprintf_format, $filter_value ),
 					'compare' => 'LIKE',
 				];
 
@@ -436,7 +556,7 @@ class Field_Metabox {
 				foreach ( $filter_value as $value ) {
 					$meta_query[] = [
 						'key'     => $custom_field_key,
-						'value'   => sprintf( '"%s"', $value ),
+						'value'   => sprintf( $sprintf_format, $value ),
 						'compare' => 'LIKE',
 					];
 				}
@@ -488,12 +608,37 @@ class Field_Metabox {
 		// Use the actual meta key
 		$actual_meta_key = $this->get_meta_key_by_dd_tag( $custom_field_key );
 
+		$field_info     = $this->get_field_settings_from_dd_provider( $custom_field_key );
+		$field_settings = $field_info['field'] ?? [];
+		$field_type     = $field_settings['type'] ?? 'text';
+		$is_timestamp   = false;
+
+		switch ( $field_type ) {
+			case 'date':
+			case 'time':
+			case 'datetime':
+				$is_timestamp = ! empty( $field_settings['timestamp'] );
+				break;
+		}
+
 		// Replace the meta_key with the actual meta key
 		if ( $mode === 'single' ) {
 			$meta_query['key'] = $actual_meta_key;
+
+			// Handle timestamp value (@since 1.12)
+			if ( $is_timestamp ) {
+				$meta_query['value'] = strtotime( $meta_query['value'] );
+				$meta_query['type']  = 'NUMERIC';
+			}
 		} else {
 			foreach ( $meta_query as $key => $query ) {
 				$meta_query[ $key ]['key'] = $actual_meta_key;
+
+				// Handle timestamp value (@since 1.12)
+				if ( $is_timestamp ) {
+					$meta_query[ $key ]['value'] = strtotime( $query['value'] );
+					$meta_query[ $key ]['type']  = 'NUMERIC';
+				}
 			}
 		}
 
@@ -516,14 +661,14 @@ class Field_Metabox {
 		$field_info         = $this->get_field_settings_from_dd_provider( $dd_tag );
 		$is_group_sub_field = isset( $field_info['parent']['id'] );
 		$field_settings     = $field_info['field'] ?? [];
-		$field_type         = $field_settings['type'] ?? 'text';
+		$mb_field_type      = $field_settings['type'] ?? 'text';
 		$use_timestamp      = ! empty( $field_settings['timestamp'] );
 
 		// Default date time format in metabox
 		$date_format = 'Y-m-d';
 		$time_format = 'H:i';
 
-		switch ( $field_type ) {
+		switch ( $mb_field_type ) {
 			case 'date':
 				$format = $date_format;
 				break;

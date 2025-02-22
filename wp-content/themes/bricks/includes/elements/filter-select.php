@@ -167,6 +167,9 @@ class Filter_Select extends Filter_Element {
 			$current_value = $settings['filterValue'];
 		}
 
+		// Escape attributes or it can't match with the options (@since 1.12)
+		$current_value = esc_attr( $current_value );
+
 		$this->input_name = $settings['name'] ?? "form-field-{$this->id}";
 
 		if ( $this->is_filter_input() ) {
@@ -203,10 +206,21 @@ class Filter_Select extends Filter_Element {
 
 		// Generate options HTML
 		foreach ( $this->populated_options as $option ) {
-			$option_value    = esc_attr( strip_tags( $option['value'] ) );
+			/**
+			 * Skip empty text options
+			 *
+			 * Each option must have a text. 0 is allowed, otherwise it will conflict with the "All" option / Placeholder option.
+			 *
+			 * @since 1.12
+			 */
+			if ( isset( $option['text'] ) && $option['text'] === '' ) {
+				continue;
+			}
+
+			$option_value    = esc_attr( $option['value'] );
 			$option_text     = $this->get_option_text_with_count( $option );
 			$option_class    = ! empty( $option['class'] ) ? esc_attr( trim( $option['class'] ) ) : '';
-			$option_selected = selected( $current_value, $option_value, false );
+			$option_selected = selected( $current_value, urldecode( $option_value ), false );
 			$option_disabled = isset( $option['disabled'] ) ? 'disabled' : '';
 
 			echo '<option value="' . $option_value . '" ' .

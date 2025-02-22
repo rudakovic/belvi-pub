@@ -27,14 +27,12 @@ class Element_Form extends Element {
 			wp_enqueue_script( 'bricks-turnstile' );
 		}
 
-		$fields = ! empty( $this->settings['fields'] ) ? $this->settings['fields'] : false;
-
 		/**
 		 * Load Flatpickr library (form field type 'date' found)
 		 *
 		 * @since 1.8.6 - Load localization file if set (default: English)
 		 */
-		if ( is_array( $fields ) ) {
+		if ( ! empty( $this->settings['fields'] ) && is_array( $this->settings['fields'] ) ) {
 			foreach ( $this->settings['fields'] as $field ) {
 				if ( $field['type'] === 'datepicker' ) {
 					if ( ! bricks_is_builder() ) {
@@ -45,7 +43,14 @@ class Element_Form extends Element {
 					// Load datepicker localisation
 					$l10n = $field['l10n'] ?? '';
 					if ( $l10n ) {
-						wp_enqueue_script( 'bricks-flatpickr-l10n', "https://npmcdn.com/flatpickr@4.6.13/dist/l10n/$l10n.js", [ 'bricks-flatpickr' ], '4.6.13' );
+						/**
+						 * Set "version" (4.6.13) to null
+						 *
+						 * If version is present, we get a 302 redirect
+						 *
+						 * @since 1.12
+						 */
+						wp_enqueue_script( 'bricks-flatpickr-l10n', "https://npmcdn.com/flatpickr@4.6.13/dist/l10n/$l10n.js", [ 'bricks-flatpickr' ], null );
 					}
 				}
 			}
@@ -179,6 +184,79 @@ class Element_Form extends Element {
 					),
 					'type'     => 'info',
 					'required' => [ 'type', '=', 'password' ],
+				],
+
+				// Password toggle (@since 1.12)
+				'passwordToggle'             => [
+					'label'    => esc_html__( 'Password toggle', 'bricks' ),
+					'type'     => 'checkbox',
+					'required' => [ 'type', '=', 'password' ],
+				],
+
+				'passwordShowIcon'           => [
+					'label'    => esc_html__( 'Show password', 'bricks' ) . ': ' . esc_html__( 'Icon', 'bricks' ),
+					'type'     => 'icon',
+					'required' => [
+						[ 'type', '=', 'password' ],
+						[ 'passwordToggle', '=', true ],
+					],
+				],
+
+				'passwordHideIcon'           => [
+					'label'    => esc_html__( 'Hide password', 'bricks' ) . ': ' . esc_html__( 'Icon', 'bricks' ),
+					'type'     => 'icon',
+					'required' => [
+						[ 'type', '=', 'password' ],
+						[ 'passwordToggle', '=', true ],
+					],
+				],
+
+				'passwordShowIconTypography' => [
+					'label'    => esc_html__( 'Show password', 'bricks' ) . ': ' . esc_html__( 'Typography', 'bricks' ),
+					'type'     => 'typography',
+					'css'      => [
+						[
+							'property' => 'font',
+							'selector' => '.password-toggle .show-password i',
+						],
+					],
+					'required' => [
+						[ 'type', '=', 'password' ],
+						[ 'passwordToggle', '=', true ],
+					],
+				],
+
+				'passwordHideIconTypography' => [
+					'label'    => esc_html__( 'Hide password', 'bricks' ) . ': ' . esc_html__( 'Typography', 'bricks' ),
+					'type'     => 'typography',
+					'css'      => [
+						[
+							'property' => 'font',
+							'selector' => '.password-toggle .hide-password i',
+						],
+					],
+					'required' => [
+						[ 'type', '=', 'password' ],
+						[ 'passwordToggle', '=', true ],
+					],
+				],
+
+				'passwordIconPosition'       => [
+					'label'       => esc_html__( 'Icon position', 'bricks' ),
+					'type'        => 'dimensions',
+					'css'         => [
+						[
+							'selector' => '.password-toggle',
+						],
+					],
+					'placeholder' => [
+						'top'   => '50%',
+						'right' => '12px',
+					],
+					'required'    => [
+						[ 'type', '=', 'password' ],
+						[ 'passwordToggle', '=', true ],
+					],
 				],
 
 				'min'                        => [
@@ -573,6 +651,21 @@ class Element_Form extends Element {
 					'selector' => 'select',
 				],
 			],
+		];
+
+		// Disable form validation on input or blur (@since 1.12)
+		$this->controls['disableFormValidationOn'] = [
+			'tab'         => 'content',
+			'group'       => 'fields',
+			'label'       => esc_html__( 'Disable form validation', 'bricks' ),
+			'placeholder' => esc_html__( 'Select', 'bricks' ),
+			'type'        => 'select',
+			'multiple'    => true,
+			'options'     => [
+				'input' => esc_html__( 'On input', 'bricks' ),
+				'blur'  => esc_html__( 'On blur', 'bricks' ),
+			],
+			'description' => esc_html__( 'By default, form fields are validated on input, blur and submit.', 'bricks' ),
 		];
 
 		/**
@@ -1771,8 +1864,9 @@ class Element_Form extends Element {
 
 	public function render() {
 		$settings = $this->settings;
+		$fields   = $settings['fields'] ?? [];
 
-		if ( empty( $settings['fields'] ) ) {
+		if ( empty( $fields ) ) {
 			return $this->render_element_placeholder(
 				[
 					'title' => esc_html__( 'No form field added.', 'bricks' ),
@@ -1811,6 +1905,11 @@ class Element_Form extends Element {
 			$this->set_attribute( '_root', 'data-notice', wp_json_encode( $notice_data ) );
 		}
 
+		// @since 1.12: Add form error message trigger, if set (as JSON)
+		if ( isset( $settings['disableFormValidationOn'] ) ) {
+			$this->set_attribute( '_root', 'data-validation-disabled-on', wp_json_encode( $settings['disableFormValidationOn'] ) );
+		}
+
 		// Use form element ID to get element settings in form submit logic
 		$this->set_attribute( '_root', 'data-element-id', $this->id );
 
@@ -1843,7 +1942,7 @@ class Element_Form extends Element {
 				$this->set_attribute( '_root', 'action', wp_login_url() . '?action=postpass' );
 
 				// Change password field name to what WP expects
-				foreach ( $settings['fields'] as &$field ) {
+				foreach ( $fields as &$field ) {
 					if ( $field['type'] === 'password' ) {
 						$field['name'] = 'post_password';
 						break;
@@ -1863,7 +1962,7 @@ class Element_Form extends Element {
 		// Append suffix for unique label HTML attributes inside a loop (@since 1.8)
 		$field_suffix = Query::is_any_looping() ? '-' . Query::is_any_looping() . '-' . Query::get_loop_index() : '';
 
-		foreach ( $settings['fields'] as $index => $field ) {
+		foreach ( $fields as $index => $field ) {
 			// Field ID generated when rendering form repeater in builder panel
 			$field_id = isset( $field['id'] ) ? $field['id'] : '';
 
@@ -2112,8 +2211,11 @@ class Element_Form extends Element {
 					echo '<input ' . $this->render_attributes( 'password_protection_template_id' ) . '>';
 			}
 
-			foreach ( $settings['fields'] as $index => $field ) {
+			foreach ( $fields as $index => $field ) {
 				$field_value = isset( $field['value'] ) ? $this->render_dynamic_data( $field['value'] ) : ''; // @since 1.9.3
+
+				// Generate new unique ID for each field. Used for checkbox and radio fields (@since 1.12)
+				$checkbox_radio_unique_id = Helpers::generate_random_id( false ) . $field_suffix;
 
 				// Set the role and aria-labelledby attributes for the options wrapper (@since 1.9.6)
 				$this->set_attribute( "field-wrapper-$index", 'role', $field['type'] === 'radio' ? 'radiogroup' : 'group' );
@@ -2123,9 +2225,10 @@ class Element_Form extends Element {
 				 *
 				 * @since 1.9.6
 				 * @since 1.9.9: Only needed for checkbox and radio as the label is a <div> element.
+				 * @since 1.12: Changed label to unique ID
 				 */
 				if ( $field['type'] === 'checkbox' || $field['type'] === 'radio' ) {
-					$this->set_attribute( "field-wrapper-$index", 'aria-labelledby', "label-{$field['id']}" );
+					$this->set_attribute( "field-wrapper-$index", 'aria-labelledby', "label-{$checkbox_radio_unique_id}" );
 				}
 				?>
 
@@ -2138,7 +2241,8 @@ class Element_Form extends Element {
 
 				// Group label for checkbox or radio input using a <div> instead of <label> (@since 1.9.6)
 				elseif ( isset( $settings['showLabels'] ) && ! empty( $field['label'] ) && in_array( $field['type'], [ 'checkbox', 'radio' ] ) ) {
-					echo "<div class=\"label\" id=\"label-{$field['id']}\">{$field['label']}</div>";
+					// Changed label to unique ID so it's unique if we duplicate the form (@since 1.12)
+					echo "<div class=\"label\" id=\"label-{$checkbox_radio_unique_id}\">{$field['label']}</div>";
 				}
 
 				/**
@@ -2164,8 +2268,32 @@ class Element_Form extends Element {
 					}
 				}
 
-				if ( in_array( $field['type'], $input_types ) ) {
+				if ( in_array( $field['type'], $input_types, true ) ) {
+					if ( ! empty( $field['passwordToggle'] ) ) { // @since 1.12
+						echo '<div class="password-input-wrapper">';
+					}
+
 					echo '<input ' . $this->render_attributes( "field-$index" ) . '>';
+
+					// Add password toggle button if enabled and this is a password field (@since 1.12)
+					if ( $field['type'] === 'password' && ! empty( $field['passwordToggle'] ) ) {
+						echo '<button type="button" class="password-toggle" aria-label="' . esc_attr__( 'Show password', 'bricks' ) . '">';
+
+						if ( ! empty( $field['passwordShowIcon'] ) ) {
+							echo '<span class="show-password">';
+							echo self::render_icon( $field['passwordShowIcon'] );
+							echo '</span>';
+						}
+
+						if ( ! empty( $field['passwordHideIcon'] ) ) {
+							echo '<span class="hide-password hide">';
+							echo self::render_icon( $field['passwordHideIcon'] );
+							echo '</span>';
+						}
+
+						echo '</button>';
+						echo '</div>'; // Close password-input-wrapper
+					}
 				}
 
 				if ( $field['type'] == 'file' ) {
@@ -2258,7 +2386,7 @@ class Element_Form extends Element {
 					<li>
 						<input
 							type="<?php echo esc_attr( $field['type'] ); ?>"
-							id="<?php echo esc_attr( "form-field-{$field['id']}" ) . '-' . $key . $field_suffix; ?>"
+							id="<?php echo esc_attr( "form-field-{$checkbox_radio_unique_id}" ) . '-' . $key . $field_suffix; ?>"
 							name="<?php echo $field_name; ?>"
 							<?php
 							if ( isset( $field['required'] ) ) {
@@ -2274,7 +2402,7 @@ class Element_Form extends Element {
 							}
 							?>
 							value="<?php echo esc_attr( strip_tags( $field_key ) ); ?>">
-							<label for="<?php echo esc_attr( "form-field-{$field['id']}" ) . '-' . $key . $field_suffix; ?>"><?php echo $field_label; ?></label>
+							<label for="<?php echo esc_attr( "form-field-{$checkbox_radio_unique_id}" ) . '-' . $key . $field_suffix; ?>"><?php echo $field_label; ?></label>
 					</li>
 					<?php } ?>
 				</ul>

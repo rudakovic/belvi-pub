@@ -15,6 +15,10 @@ class Filter_Element extends Element {
 	public $query_settings             = [];
 	public $target_query_results_count = 0;
 
+	public function enqueue_scripts() {
+		wp_enqueue_script( 'bricks-filters' );
+	}
+
 	public function get_keywords() {
 		return [ 'input', 'form', 'field', 'filter' ];
 	}
@@ -229,7 +233,7 @@ class Filter_Element extends Element {
 
 				if ( ! empty( $choices_source ) ) {
 					foreach ( $choices_source as $choice ) {
-						if ( $choice['filter_value'] === $term->slug ) {
+						if ( self::is_option_value_matched( $choice['filter_value'], $term->slug ) ) {
 							$count = $choice['count'];
 							break;
 						}
@@ -269,13 +273,26 @@ class Filter_Element extends Element {
 
 		switch ( $field_type ) {
 			case 'post':
-				$selected_field = $settings['wpPostField'] ?? false;
+			case 'user':
+				if ( $field_type === 'post' ) {
+					$selected_field = $settings['wpPostField'] ?? false;
 
-				if ( ! $selected_field ) {
-					return;
+					if ( ! $selected_field ) {
+						return;
+					}
+
+					$selected_field_label = $this->controls['wpPostField']['options'][ $selected_field ] ?? esc_html__( 'Option', 'bricks' );
 				}
 
-				$selected_field_label = $this->controls['wpPostField']['options'][ $selected_field ] ?? esc_html__( 'Option', 'bricks' );
+				if ( $field_type === 'user' ) {
+					$selected_field = $settings['wpUserField'] ?? false;
+
+					if ( ! $selected_field ) {
+						return;
+					}
+
+					$selected_field_label = $this->controls['wpUserField']['options'][ $selected_field ] ?? esc_html__( 'Option', 'bricks' );
+				}
 
 				// Use choices source
 				$choices_source = $this->choices_source ?? [];
@@ -312,10 +329,19 @@ class Filter_Element extends Element {
 						if ( $label_mapping === 'custom' && ! empty( $custom_label_mapping ) ) {
 							// Find the label from custom label mapping array, use optionLabel if optionMetaValue is match with $meta_value
 							foreach ( $custom_label_mapping as $mapping ) {
+								$custom_label = $mapping['optionLabel'] ?? '';
+
+								// Not allow empty custom label
+								if ( $custom_label === '' ) {
+									continue;
+								}
+
+								// optionMetaValue can be string 0, or empty string
 								$find_meta_value = isset( $mapping['optionMetaValue'] ) ? $mapping['optionMetaValue'] : '';
 
+								// For wp_field, the value might be the same as the label
 								if ( $find_meta_value === $field_value || $find_meta_value === $label ) {
-									$label = $mapping['optionLabel'];
+									$label = $custom_label;
 									break;
 								}
 							}
@@ -332,35 +358,6 @@ class Filter_Element extends Element {
 					}
 				}
 
-				// Not in use anymore @since 1.11 as input name follows the element ID.
-				// Otherwise multiple filter with same input name will cause issue.
-				// Name is important when build query vars in frontend
-				// switch ( $selected_field ) {
-				// case 'post_date':
-				// $this->input_name = 'date';
-				// break;
-
-				// case 'post_modified':
-				// $this->input_name = 'modified';
-				// break;
-
-				// case 'post_author':
-				// $this->input_name = 'author';
-				// break;
-
-				// case 'post_id':
-				// $this->input_name = 'p';
-				// break;
-
-				// default:
-				// $this->input_name = $selected_field;
-				// break;
-				// }
-
-				break;
-
-			// Not in Beta
-			case 'user':
 				break;
 
 			// Not in Beta
@@ -390,6 +387,8 @@ class Filter_Element extends Element {
 
 		switch ( $source_field_type ) {
 			case 'post':
+			case 'term':
+			case 'user':
 				// Use choices source
 				$choices_source = $this->choices_source ?? [];
 
@@ -428,10 +427,19 @@ class Filter_Element extends Element {
 						if ( $label_mapping === 'custom' && ! empty( $custom_label_mapping ) ) {
 							// Find the label from custom label mapping array, use optionLabel if optionMetaValue is match with $meta_value
 							foreach ( $custom_label_mapping as $mapping ) {
+								$custom_label = $mapping['optionLabel'] ?? '';
+
+								// Not allow empty custom label
+								if ( $custom_label === '' ) {
+									continue;
+								}
+
+								// optionMetaValue can be string 0, or empty string
 								$find_meta_value = isset( $mapping['optionMetaValue'] ) ? $mapping['optionMetaValue'] : '';
 
+								// For custom_field, only replace if $meta_value is match
 								if ( $find_meta_value === $meta_value ) {
-									$label = $mapping['optionLabel'];
+									$label = $custom_label;
 									break;
 								}
 							}
@@ -452,14 +460,6 @@ class Filter_Element extends Element {
 				}
 
 				break;
-
-			// Not in Beta
-			case 'user':
-				break;
-
-			// Not in Beta
-			case 'term':
-				break;
 		}
 
 		$this->data_source = $data_source;
@@ -478,6 +478,7 @@ class Filter_Element extends Element {
 		$filter_source = $settings['filterSource'] ?? false;
 		$query_id      = $settings['filterQueryId'] ?? false;
 		$combine_logic = $settings['filterMultiLogic'] ?? 'OR';
+		$url_param     = $settings['filterNiceName'] ?? "brx_{$this->id}";
 
 		if ( ! $query_id ) {
 			return;
@@ -530,7 +531,10 @@ class Filter_Element extends Element {
 					}
 				}
 				else {
-					$other_active_filters[] = $filter;
+					// If the filter has same url_param, should not generate additional count source or wrong count will be displayed (@since 1.12)
+					if ( (string) $filter['url_param'] !== (string) $url_param ) {
+						$other_active_filters[] = $filter;
+					}
 				}
 			}
 
@@ -632,16 +636,21 @@ class Filter_Element extends Element {
 					}
 				}
 
-				// This filter is active and there are no other active filters, use filtered source
+				// No other active filters
 				else {
-					$check_count_array = $filtered_source;
-
 					if ( $this->name === 'filter-checkbox' ) {
+						// Checkbox: Always use filtered source
+						$check_count_array = $filtered_source;
 						// If checkbox combine logic is AND, set not_found_option_as_zero to true
 						$not_found_option_as_zero = $combine_logic === 'AND';
 					} else {
-						// Don't set not_found_option_as_zero or other options will be disabled
-						$not_found_option_as_zero = false;
+						// Other filters: Use filtered source if this filter is not active
+						if ( $this_active_filter === false ) {
+							$check_count_array = $filtered_source;
+							// Don't set not_found_option_as_zero or other options will be disabled
+							$not_found_option_as_zero = false;
+						}
+						// Reach here, this filter is active, use current count, don't set $check_count_array
 					}
 				}
 
@@ -650,7 +659,7 @@ class Filter_Element extends Element {
 					$found = false;
 					foreach ( $check_count_array as $counted ) {
 						// Loop through the source and check if the value is current option value
-						if ( $counted['filter_value'] === $option['value'] ) {
+						if ( self::is_option_value_matched( $counted['filter_value'], $option['value'] ) ) {
 							$count = $counted['count'];
 							$found = true;
 							break;
@@ -667,8 +676,8 @@ class Filter_Element extends Element {
 				$option['count'] = $count;
 			}
 
-			// If target query results count is 0, set the count to 0
-			if ( $query_results_count == 0 ) {
+			// Farget query results count is 0: set count to 0, if this filter is not active
+			if ( $query_results_count == 0 && $this_active_filter === false ) {
 				$option['count'] = 0;
 			}
 
@@ -723,7 +732,7 @@ class Filter_Element extends Element {
 	 */
 	public function get_option_text_with_count( $option ) {
 		$settings       = $this->settings;
-		$text           = strip_tags( trim( $option['text'] ) );
+		$text           = esc_html( trim( $option['text'] ) );
 		$count          = $option['count'] ?? 0;
 		$is_all         = $option['is_all'] ?? false;
 		$is_placeholder = $option['is_placeholder'] ?? false;
@@ -775,19 +784,6 @@ class Filter_Element extends Element {
 			];
 		}
 
-		// if ( $this->name === 'filter-radio' ) {
-			// Add an empty option
-			// $options[] = [
-			// 'value'    => '',
-			// 'value_id' => '',
-			// 'text'     => esc_html__( 'Sorting', 'bricks' ),
-			// 'class'    => 'brx-input-radio-option-empty',
-			// 'is_all'   => true,
-			// 'parent'   => 0,
-			// 'children' => [],
-			// ];
-		// }
-
 		foreach ( $sort_options as $option ) {
 			$sort_source = $option['optionSource'] ?? false;
 			$label       = $option['optionLabel'] ?? false;
@@ -795,6 +791,9 @@ class Filter_Element extends Element {
 			if ( ! $sort_source || ! $label ) {
 				continue;
 			}
+
+			// If the source contains |, means it is a term or user, just remove the prefix (@since 1.12)
+			$sort_source = str_replace( [ 'term|', 'user|' ], '', $sort_source );
 
 			$order = $option['optionOrder'] ?? 'ASC';
 			$value = $sort_source . '_' . $order;
@@ -884,7 +883,7 @@ class Filter_Element extends Element {
 			if ( ! empty( $term['children_ids'] ) && $term['depth'] > 0 ) {
 				// Find the parent & merge the children_ids (recursively)
 				foreach ( $updated_data_source as $j => $parent ) {
-					if ( $parent['value_id'] === $term['parent'] ) {
+					if ( self::is_option_value_matched( $parent['value_id'], $term['parent'] ) ) {
 						$updated_data_source[ $j ]['children_ids'] = array_merge( $updated_data_source[ $j ]['children_ids'], $term['children_ids'] );
 						break;
 					}
@@ -946,7 +945,10 @@ class Filter_Element extends Element {
 
 		$controls['filterNiceNameInfo'] = [
 			'type'     => 'info',
-			'required' => [ 'filterNiceName', '!=', '' ],
+			'required' => [
+				[ 'filterQueryId', '!=', '' ],
+				[ 'filterNiceName', '!=', '' ]
+			],
 			'content'  => esc_html__( 'Use a prefix to avoid conflicts with plugins or WordPress reserved parameters.', 'bricks' ),
 		];
 
@@ -994,6 +996,79 @@ class Filter_Element extends Element {
 					[ 'filterAction', '!=', 'sort' ],
 				],
 			];
+
+			// source field type so we can show the correct field options
+			$controls['sourceFieldType'] = [
+				'type'        => 'select',
+				'label'       => esc_html__( 'Field type', 'bricks' ),
+				'inline'      => true,
+				'options'     => [
+					'post' => esc_html__( 'Post', 'bricks' ),
+					'term' => esc_html__( 'Term', 'bricks' ),
+					'user' => esc_html__( 'User', 'bricks' ),
+				],
+				'placeholder' => esc_html__( 'Post', 'bricks' ),
+				'required'    => [
+					[ 'filterQueryId', '!=', '' ],
+					[ 'filterAction', '!=', 'sort' ],
+					[ 'filterSource', '=', [ 'wpField', 'customField' ] ],
+				],
+			];
+
+			// source:post wpPostField - post date, post type, post status, post author, post modified date
+			$controls['wpPostField'] = [
+				'type'        => 'select',
+				'label'       => esc_html__( 'Field', 'bricks' ),
+				'inline'      => true,
+				'options'     => [
+					'post_id'     => esc_html__( 'Post ID', 'bricks' ),
+					'post_type'   => esc_html__( 'Post type', 'bricks' ),
+					'post_status' => esc_html__( 'Post status', 'bricks' ),
+					'post_author' => esc_html__( 'Post author', 'bricks' ),
+				],
+				'placeholder' => esc_html__( 'Select', 'bricks' ),
+				'required'    => [
+					[ 'filterQueryId', '!=', '' ],
+					[ 'filterAction', '!=', 'sort' ],
+					[ 'filterSource', '=', 'wpField' ],
+					[ 'sourceFieldType', '=', [ '', 'post' ] ],
+				],
+			];
+
+			// source:user wpUserField - user role, user display name, user nicename, user email, user url, user registered date
+			$controls['wpUserField'] = [
+				'type'        => 'select',
+				'label'       => esc_html__( 'Field', 'bricks' ),
+				'inline'      => true,
+				'options'     => [
+					'user_role' => esc_html__( 'User role', 'bricks' ),
+				],
+				'placeholder' => esc_html__( 'Select', 'bricks' ),
+				'required'    => [
+					[ 'filterSource', '=', 'wpField' ],
+					[ 'sourceFieldType', '=', 'user' ],
+					[ 'filterAction', '!=', 'sort' ],
+				]
+			];
+
+			// source:term wpTermField - term name, term slug, taxonomy, term group
+			// Not in Beta
+			// $controls['wpTermField'] = [
+			// 'type'  => 'select',
+			// 'label' => esc_html__( 'Field', 'bricks' ),
+			// 'options' => [
+			// 'name' => esc_html__( 'Term name', 'bricks' ),
+			// 'slug' => esc_html__( 'Term slug', 'bricks' ),
+			// 'taxonomy' => esc_html__( 'Taxonomy', 'bricks' ),
+			// 'term_group' => esc_html__( 'Term group', 'bricks' ),
+			// ],
+			// 'placeholder' => esc_html__( 'Select', 'bricks' ),
+			// 'required' => [
+			// ['filterSource', '=', 'wpField'],
+			// ['sourceFieldType', '=', 'term'],
+			// ['filterAction', '!=', 'sort'],
+			// ]
+			// ];
 
 			$controls['filterTaxonomy'] = [
 				'type'          => 'select',
@@ -1045,9 +1120,9 @@ class Filter_Element extends Element {
 				'type'        => 'select',
 				'label'       => esc_html__( 'Terms', 'bricks' ) . ': ' . esc_html__( 'Include', 'bricks' ),
 				'optionsAjax' => [
-					'action'   => 'bricks_get_terms_options',
-					'postType' => 'any',
-					'taxonomy' => '{{filterTaxonomy|array}}', // @since 1.11
+					'action'    => 'bricks_get_terms_options',
+					'postTypes' => [ 'any' ],
+					'taxonomy'  => '{{filterTaxonomy|array}}', // @since 1.11
 				],
 				'multiple'    => true,
 				'searchable'  => true,
@@ -1066,9 +1141,9 @@ class Filter_Element extends Element {
 				'type'        => 'select',
 				'label'       => esc_html__( 'Terms', 'bricks' ) . ': ' . esc_html__( 'Exclude', 'bricks' ),
 				'optionsAjax' => [
-					'action'   => 'bricks_get_terms_options',
-					'postType' => 'any',
-					'taxonomy' => '{{filterTaxonomy|array}}', // @since 1.
+					'action'    => 'bricks_get_terms_options',
+					'postTypes' => [ 'any' ],
+					'taxonomy'  => '{{filterTaxonomy|array}}', // @since 1.11
 				],
 				'multiple'    => true,
 				'searchable'  => true,
@@ -1193,84 +1268,6 @@ class Filter_Element extends Element {
 				];
 			}
 
-			// source field type so we can show the correct field options
-			$controls['sourceFieldType'] = [
-				'type'        => 'select',
-				'label'       => esc_html__( 'Field type', 'bricks' ),
-				'inline'      => true,
-				'options'     => [
-					'post' => esc_html__( 'Post', 'bricks' ),
-					// 'user'     => esc_html__( 'User', 'bricks' ), // Not in Beta
-					// 'term'     => esc_html__( 'Term', 'bricks' ), // Not in Beta
-				],
-				'placeholder' => esc_html__( 'Post', 'bricks' ),
-				'required'    => [
-					[ 'filterQueryId', '!=', '' ],
-					[ 'filterAction', '!=', 'sort' ],
-					[ 'filterSource', '=', [ 'wpField', 'customField' ] ],
-				],
-			];
-
-			// source:post wpPostField - post date, post type, post status, post author, post modified date
-			$controls['wpPostField'] = [
-				'type'        => 'select',
-				'label'       => esc_html__( 'Field', 'bricks' ),
-				'inline'      => true,
-				'options'     => [
-					'post_id'     => esc_html__( 'Post ID', 'bricks' ),
-					'post_type'   => esc_html__( 'Post type', 'bricks' ),
-					'post_status' => esc_html__( 'Post status', 'bricks' ),
-					'post_author' => esc_html__( 'Post author', 'bricks' ),
-				],
-				'placeholder' => esc_html__( 'Select', 'bricks' ),
-				'required'    => [
-					[ 'filterQueryId', '!=', '' ],
-					[ 'filterAction', '!=', 'sort' ],
-					[ 'filterSource', '=', 'wpField' ],
-					[ 'sourceFieldType', '!=', [ 'user', 'term' ] ],
-				],
-			];
-
-			// source:user wpUserField - user role, user display name, user nicename, user email, user url, user registered date
-			// Not in Beta
-			// $controls['wpUserField'] = [
-			// 'type'  => 'select',
-			// 'label' => esc_html__( 'Field', 'bricks' ),
-			// 'options' => [
-			// 'user_role' => esc_html__( 'User role', 'bricks' ),
-			// 'display_name' => esc_html__( 'Display name', 'bricks' ),
-			// 'user_nicename' => esc_html__( 'User nicename', 'bricks' ),
-			// 'user_email' => esc_html__( 'User email', 'bricks' ),
-			// 'user_url' => esc_html__( 'User url', 'bricks' ),
-			// 'user_registered' => esc_html__( 'User registered date', 'bricks' ),
-			// ],
-			// 'placeholder' => esc_html__( 'Select', 'bricks' ),
-			// 'required' => [
-			// ['filterSource', '=', 'wpField'],
-			// ['sourceFieldType', '=', 'user'],
-			// ['filterAction', '!=', 'sort'],
-			// ]
-			// ];
-
-			// source:term wpTermField - term name, term slug, taxonomy, term group
-			// Not in Beta
-			// $controls['wpTermField'] = [
-			// 'type'  => 'select',
-			// 'label' => esc_html__( 'Field', 'bricks' ),
-			// 'options' => [
-			// 'name' => esc_html__( 'Term name', 'bricks' ),
-			// 'slug' => esc_html__( 'Term slug', 'bricks' ),
-			// 'taxonomy' => esc_html__( 'Taxonomy', 'bricks' ),
-			// 'term_group' => esc_html__( 'Term group', 'bricks' ),
-			// ],
-			// 'placeholder' => esc_html__( 'Select', 'bricks' ),
-			// 'required' => [
-			// ['filterSource', '=', 'wpField'],
-			// ['sourceFieldType', '=', 'term'],
-			// ['filterAction', '!=', 'sort'],
-			// ]
-			// ];
-
 			// Custom fields integration (@since 1.11.1)
 			if ( Helpers::enabled_query_filters_integration() ) {
 				$controls['fieldProvider'] = [
@@ -1333,18 +1330,16 @@ class Filter_Element extends Element {
 			if ( $this->name === 'filter-checkbox' ) {
 				$controls['filterMultiLogic'] = [
 					'type'        => 'select',
-					'label'       => esc_html__( 'Multiple options logic', 'bricks' ),
+					'label'       => esc_html__( 'Multiple options', 'bricks' ),
 					'options'     => [
 						'OR'  => 'OR',
 						'AND' => 'AND',
 					],
 					'inline'      => true,
 					'placeholder' => 'OR',
-					'description' => esc_html__( 'Which logic to apply when multiple options are selected.', 'bricks' ),
 					'required'    => [
 						[ 'filterQueryId', '!=', '' ],
 						[ 'filterAction', '!=', 'sort' ],
-						[ 'filterSource', '=', [ 'taxonomy', 'customField' ] ],
 					],
 				];
 			}
@@ -1437,6 +1432,32 @@ class Filter_Element extends Element {
 
 		// Sorting controls
 		if ( in_array( $this->name, [ 'filter-select', 'filter-radio' ], true ) ) {
+			// queryOrderBy, termsOrderBy, usersOrderBy
+			$post_sort_options  = Setup::get_control_options( 'queryOrderBy' );
+			$term_order_options = Setup::get_control_options( 'termsOrderBy' );
+			$user_order_options = Setup::get_control_options( 'usersOrderBy' );
+
+			$sort_options = [];
+			foreach ( $post_sort_options as $key => $value ) {
+				$key                  = $key;
+				$value                = '(' . esc_html__( 'Post', 'bricks' ) . ') ' . $value;
+				$sort_options[ $key ] = $value;
+			}
+
+			foreach ( $term_order_options as $key => $value ) {
+				$key                  = 'term|' . $key;
+				$value                = '(' . esc_html__( 'Term', 'bricks' ) . ') ' . $value;
+				$sort_options[ $key ] = $value;
+			}
+
+			foreach ( $user_order_options as $key => $value ) {
+				$key                  = 'user|' . $key;
+				$value                = '(' . esc_html__( 'User', 'bricks' ) . ') ' . $value;
+				$sort_options[ $key ] = $value;
+			}
+
+			// Each of the options add . (Post) / .term (Term) / .user (User) prefix
+
 			$controls['sortOptions'] = [
 				'type'          => 'repeater',
 				'label'         => esc_html__( 'Sort options', 'bricks' ),
@@ -1450,15 +1471,16 @@ class Filter_Element extends Element {
 					'optionSource'  => [
 						'type'        => 'select',
 						'label'       => esc_html__( 'Source', 'bricks' ),
-						'options'     => Setup::get_control_options( 'queryOrderBy' ),
+						'options'     => $sort_options,
 						'placeholder' => esc_html__( 'Select', 'bricks' ),
+						'searchable'  => true,
 					],
 					'optionMetaKey' => [
 						'type'           => 'text',
 						'label'          => esc_html__( 'Meta Key', 'bricks' ),
 						'hasDynamicData' => false,
 						'required'       => [
-							[ 'optionSource', '=', [ 'meta_value','meta_value_num' ] ],
+							[ 'optionSource', '=', [ 'meta_value', 'term|meta_value', 'user|meta_value', 'meta_value_num', 'term|meta_value_num', 'user|meta_value_num' ] ],
 						],
 					],
 					'optionOrder'   => [
@@ -1647,5 +1669,32 @@ class Filter_Element extends Element {
 		}
 
 		return $controls;
+	}
+
+	/**
+	 * Compares the both values in string format
+	 *
+	 * @since 1.12
+	 */
+	public static function is_option_value_matched( $option, $value ) {
+		// Ensure both values are of the same type
+		if ( is_array( $option ) ) {
+			$option = array_map( 'strval', $option );
+		} else {
+			$option = strval( $option );
+		}
+
+		// Ensure both values are of the same type
+		if ( is_array( $value ) ) {
+			$value = array_map( 'strval', $value );
+		} else {
+			$value = strval( $value );
+		}
+
+		if ( is_array( $value ) ) {
+			return in_array( $option, $value, true );
+		}
+
+		return $option === $value;
 	}
 }

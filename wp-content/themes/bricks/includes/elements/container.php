@@ -108,7 +108,7 @@ class Element_Container extends Element {
 				sprintf( esc_html__( '%s layout is active' ), esc_html__( 'Masonry', 'bricks' ) ),
 				esc_html__( 'Style', 'bricks' ),
 				esc_html__( 'Layout', 'bricks' ),
-				esc_html__( 'Ensure that no conflicting CSS styles are applied to this element.', 'bricks' )
+				esc_html__( 'Ensure that no conflicting CSS styles are applied to this element and that a width is defined, especially when using a Div element.', 'bricks' )
 			),
 			'required' => [ '_useMasonry', '=', true ],
 		];
@@ -743,16 +743,24 @@ class Element_Container extends Element {
 
 	public function render() {
 		$element  = $this->element;
-		$settings = $this->settings ?? []; // (@since 1.10)
+		$settings = $this->settings ?? [];
 		$output   = '';
 
 		// Bricks Query Loop
 		if ( isset( $settings['hasLoop'] ) ) {
-			// Hold the global element settings to add back 'hasLoop' after the query->render (@since 1.8)
+			// Hold the component to first unset 'hasLoop' and then add back 'hasLoop' after the query->render (@since 1.12)
+			$original_component = Helpers::get_component( $element );
+
+			// Hold the global element to first unset 'hasLoop' and then add back 'hasLoop' after the query->render
 			$global_element = Helpers::get_global_element( $element );
 
 			// STEP: Query
 			add_filter( 'bricks/posts/query_vars', [ $this, 'maybe_set_preview_query' ], 10, 3 );
+
+			// Is component: Generate random ID for component instance (@since 1.12)
+			if ( ! empty( $element['instanceId'] ) && ! empty( $element['parentComponent'] ) ) {
+				$element['id'] .= ':' . $element['instanceId'];
+			}
 
 			$query = new \Bricks\Query( $element );
 
@@ -761,7 +769,25 @@ class Element_Container extends Element {
 			// Prevent endless loop
 			unset( $element['settings']['hasLoop'] );
 
-			// Prevent endless loop for global element (@since 1.8)
+			// Prevent endless loop for component (@since 1.12)
+			if ( $original_component ) {
+				// Find all component element and unset 'hasLoop'
+				Database::$global_data['components'] = array_map(
+					function( $component ) use ( $element ) {
+						if ( ! empty( $element['cid'] ) && $element['cid'] === $component['id'] ) {
+							foreach ( $component['elements'] as $index => $component_element ) {
+								if ( isset( $component['elements'][ $index ]['settings']['hasLoop'] ) ) {
+									unset( $component['elements'][ $index ]['settings']['hasLoop'] );
+								}
+							}
+						}
+						return $component;
+					},
+					Database::$global_data['components']
+				);
+			}
+
+			// Prevent endless loop for global element
 			if ( ! empty( $global_element['global'] ) ) {
 				// Find the global element and unset 'hasLoop'
 				Database::$global_data['elements'] = array_map(
@@ -780,7 +806,21 @@ class Element_Container extends Element {
 
 			echo $output;
 
-			// Prevent endless loop for global element (@since 1.8)
+			// Prevent endless loop for component (@since 1.12)
+			if ( $original_component ) {
+				// Restore orignal component with 'hasLoop' setting after execute render_element
+				Database::$global_data['components'] = array_map(
+					function( $component ) use ( $element, $original_component ) {
+						if ( ! empty( $element['cid'] ) && $element['cid'] === $component['id'] ) {
+							  $component = $original_component;
+						}
+						return $component;
+					},
+					Database::$global_data['components']
+				);
+			}
+
+			// Prevent endless loop for global element
 			if ( ! empty( $global_element['global'] ) ) {
 				// Add back global element 'hasLoop' setting after execute render_element
 				Database::$global_data['elements'] = array_map(
@@ -805,10 +845,10 @@ class Element_Container extends Element {
 			return;
 		}
 
-		// Render the video wrapper first so we know it before adding the has-bg-video class (@since 1.5.1)
+		// Render the video wrapper first so we know it before adding the has-bg-video class
 		$video_wrapper_html = $this->get_background_video_html( $settings );
 
-		// No background video set on element ID: Loop over element global classes (@since 1.7)
+		// No background video set on element ID: Loop over element global classes
 		if ( ! $video_wrapper_html ) {
 			$elements_class_ids = ! empty( $settings['_cssGlobalClasses'] ) ? $settings['_cssGlobalClasses'] : [];
 
@@ -837,7 +877,7 @@ class Element_Container extends Element {
 			$this->set_attribute( '_root', 'class', 'has-shape' );
 		}
 
-		// Non-megamenu dropdown content: Set tag to 'ul' (@since 1.8)
+		// Non-megamenu dropdown content: Set tag to 'ul'
 		$parent_id      = ! empty( $element['parent'] ) ? $element['parent'] : false;
 		$parent_element = ! empty( Frontend::$elements[ $parent_id ] ) ? Frontend::$elements[ $parent_id ] : false;
 
@@ -874,21 +914,28 @@ class Element_Container extends Element {
 			}
 		}
 
-		// Default: Non Query Loop
+		// Default: Non-query loop
 		$output .= "<{$this->tag} {$this->render_attributes( '_root' )}>";
 
 		$output .= self::get_shape_divider_html( $settings );
 
 		$output .= $video_wrapper_html;
 
+		// Render element children
 		if ( ! empty( $element['children'] ) && is_array( $element['children'] ) ) {
 			foreach ( $element['children'] as $child_id ) {
-				if ( ! array_key_exists( $child_id, Frontend::$elements ) ) {
+				$child_element = Frontend::$elements[ $child_id ] ?? false;
+
+				/**
+				 * Skip element: Component with this 'cid' doesn't exist in database
+				 *
+				 * @since 1.12
+				 */
+				if ( ! empty( $child_element['cid'] ) && ! Helpers::get_component_by_cid( $child_element['cid'] ) ) {
 					continue;
 				}
 
-				$child_element = ! empty( Frontend::$elements[ $child_id ] ) ? Frontend::$elements[ $child_id ] : false;
-				$child_html    = $child_element ? Frontend::render_element( $child_element ) : false; // Recursive
+				$child_html = $child_element ? Frontend::render_element( $child_element ) : false; // Recursive
 
 				if ( $child_element && $child_html ) {
 					// Nav items is parent element: Wrap this nav link in <li> (@since 1.8)

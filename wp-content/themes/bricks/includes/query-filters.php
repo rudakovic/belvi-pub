@@ -32,6 +32,7 @@ class Query_Filters {
 	public static $selected_filters        = []; // @since 1.11
 	public static $query_vars_before_merge = [];
 	public static $is_saving_post          = false;
+	private static $generating_object_type = 'post'; // @since 1.12
 
 	public function __construct() {
 		global $wpdb;
@@ -69,6 +70,11 @@ class Query_Filters {
 			// Term
 			add_action( 'edited_term', [ $this, 'edited_term' ], PHP_INT_MAX - 10, 3 );
 			add_action( 'delete_term', [ $this, 'delete_term' ], 10, 4 );
+
+			// User
+			add_action( 'profile_update', [ $this, 'user_updated' ], PHP_INT_MAX - 10, 2 );
+			add_action( 'user_register', [ $this, 'user_updated' ], PHP_INT_MAX - 10, 1 );
+			add_action( 'delete_user', [ $this, 'delete_user' ] );
 
 			// Element conditions all true for filter elements in filter API endpoints (@since 1.9.8)
 			add_filter( 'bricks/element/render', [ $this, 'filter_element_render' ], 10, 2 );
@@ -684,7 +690,13 @@ class Query_Filters {
 			return;
 		}
 
-		// Retrieve GET parameters starts with 'brx_' and save as $brx_filters, otherwise save as $unknown_filters
+		/**
+		 * Retrieve GET parameters starts with 'brx_' and save as $brx_filters, otherwise save as $unknown_filters
+		 *
+		 * Use wp_unslash for the values or it will be slashed.
+		 *
+		 * @since 1.12
+		 */
 		$brx_filters     = [];
 		$unknown_filters = [];
 
@@ -692,11 +704,12 @@ class Query_Filters {
 			if ( strpos( $key, 'brx_' ) === 0 ) {
 				$filter_id                 = str_replace( 'brx_', '', $key );
 				$brx_filters[ $filter_id ] = [
-					'value'        => $value,
-					'element_data' => false
+					'value'        => wp_unslash( $value ),
+					'element_data' => false,
+					'url_param'    => $key,
 				];
 			} else {
-				$unknown_filters[ $key ] = $value;
+				$unknown_filters[ $key ] = wp_unslash( $value );
 			}
 		}
 
@@ -733,7 +746,8 @@ class Query_Filters {
 
 				$brx_filters[ $element_data['filter_id'] ] = [
 					'value'        => $value,
-					'element_data' => $element_data
+					'element_data' => $element_data,
+					'url_param'    => $key
 				];
 			}
 		}
@@ -743,8 +757,11 @@ class Query_Filters {
 		if ( ! empty( $brx_filters ) ) {
 			// $brx_filters is an array
 			foreach ( $brx_filters as $filter_id => $data ) {
+				// Ensure the ID is a string as it could be 6 digit number (@since 1.12)
+				$filter_id    = (string) $filter_id;
 				$value        = $data['value'];
 				$element_data = $data['element_data'];
+				$url_param    = $data['url_param'];
 
 				// Get filter element settings from DB if is empty (not found in $unknown_filters)
 				if ( ! $element_data ) {
@@ -779,6 +796,7 @@ class Query_Filters {
 					'settings'      => $element_settings,
 					'value'         => $value,
 					'instance_name' => $filter_type,
+					'url_param'     => $url_param
 				];
 
 				if ( ! isset( $active_filters[ $target_query_id ] ) ) {
@@ -822,25 +840,30 @@ class Query_Filters {
 			return;
 		}
 
+		$object_types = [ 'post','term','user' ];
 		// Loop through all active filters
 		foreach ( self::$active_filters as $query_id => $active_filters ) {
+			// Ensure the ID is a string as it could be 6 digit number (@since 1.12)
+			$query_id = (string) $query_id;
 
-			// STEP: generate query vars from active filters
-			$query_vars = self::generate_query_vars_from_active_filters( $query_id );
-
-			if ( ! empty( $query_vars ) ) {
-
-				// STEP: Determine if a search filter is active
-				$has_search_filter = false;
-				foreach ( $active_filters as $active_filter ) {
-					if ( $active_filter['instance_name'] === 'filter-search' ) {
-						$has_search_filter = true;
-						break;
-					}
+			// STEP: Determine if a search filter is active
+			$has_search_filter = false;
+			foreach ( $active_filters as $active_filter ) {
+				if ( $active_filter['instance_name'] === 'filter-search' ) {
+					$has_search_filter = true;
+					break;
 				}
+			}
+
+			foreach ( $object_types as $object_type ) {
+				// STEP: Set flag for query_vars (@since 1.12)
+				self::set_generating_type( $object_type );
+
+				// STEP: generate query vars from active filters
+				$query_vars = self::generate_query_vars_from_active_filters( $query_id );
 
 				add_filter(
-					'bricks/posts/query_vars',
+					"bricks/{$object_type}s/query_vars",
 					function( $vars, $settings, $element_id ) use ( $query_vars, $query_id, $has_search_filter ) {
 						if ( $element_id !== $query_id ) {
 							return $vars;
@@ -865,25 +888,28 @@ class Query_Filters {
 					3
 				);
 
-				add_filter(
-					'bricks/query/supress_render_content',
-					function( $supress, $query_instance ) use ( $query_id ) {
-						$element_id = $query_instance->element_id ?? false;
-
-						if ( ! $element_id ) {
-							return $supress;
-						}
-
-						if ( $element_id === $query_id ) {
-							return false;
-						}
-
-						return $supress;
-					},
-					10,
-					3
-				);
+				// STEP: Reset flasg (@since 1.12)
+				self::reset_generating_type();
 			}
+
+			add_filter(
+				'bricks/query/supress_render_content',
+				function( $supress, $query_instance ) use ( $query_id ) {
+					$element_id = $query_instance->element_id ?? false;
+
+					if ( ! $element_id ) {
+						return $supress;
+					}
+
+					if ( $element_id === $query_id ) {
+						return false;
+					}
+
+					return $supress;
+				},
+				10,
+				3
+			);
 		}
 	}
 
@@ -1168,7 +1194,8 @@ class Query_Filters {
 	private function get_elements_from_element_table( $args = [] ) {
 		global $wpdb;
 
-		$table_name = self::get_table_name( 'element' );
+		$table_name  = self::get_table_name( 'element' );
+		$posts_table = $wpdb->posts;
 
 		// Initialize an empty array to store placeholders and values
 		$placeholders = [];
@@ -1178,20 +1205,30 @@ class Query_Filters {
 		// Loop through all args and build where clause
 		foreach ( $args as $key => $value ) {
 			if ( is_array( $value ) ) {
-				$placeholders[] = $key . ' ' . $value['operator'] . ' %s';
+				$placeholders[] = "{$key} {$value['operator']} %s";
 				$values[]       = $value['value'];
 			} else {
-				$placeholders[] = $key . ' = %s';
+				$placeholders[] = "{$key} = %s";
 				$values[]       = $value;
 			}
 		}
+
+		// Add condition to ensure the post is published
+		$placeholders[] = "{$posts_table}.post_status = %s";
+		$values[]       = 'publish';
 
 		// If we have placeholders, build where clause
 		if ( ! empty( $placeholders ) ) {
 			$where_clause = 'WHERE ' . implode( ' AND ', $placeholders );
 		}
 
-		$query = "SELECT * FROM {$table_name} {$where_clause}";
+		// Build the query with a LEFT JOIN to the posts table
+		$query = "
+			SELECT {$table_name}.*
+			FROM {$table_name}
+			LEFT JOIN {$posts_table} ON {$table_name}.post_id = {$posts_table}.ID
+			{$where_clause}
+		";
 
 		// Use prepare to avoid SQL injection if we have values
 		if ( ! empty( $values ) ) {
@@ -1398,29 +1435,55 @@ class Query_Filters {
 	/**
 	 * Generate index records for a given custom field
 	 */
-	public static function generate_custom_field_index_rows( $post_id, $meta_key, $provider = 'none' ) {
+	public static function generate_custom_field_index_rows( $object_id, $meta_key, $provider = 'none', $object_type = 'post' ) {
 		$rows = [];
 
-		// Get the post_id if it's a post object
-		if ( is_a( $post_id, 'WP_Post' ) ) {
-			$post_id = $post_id->ID;
+		if ( is_a( $object_id, 'WP_Post' ) ) {
+			$object_id = $object_id->ID;
+		}
+
+		elseif ( is_a( $object_id, 'WP_Term' ) ) {
+			$object_id = $object_id->term_id;
+		}
+
+		elseif ( is_a( $object_id, 'WP_User' ) ) {
+			$object_id = $object_id->ID;
 		}
 
 		if ( $provider === 'none' ) {
-			$meta_value = get_post_meta( $post_id, $meta_key, true );
-			$rows[]     = [
+
+			switch ( $object_type ) {
+				case 'post':
+					$meta_value = get_post_meta( $object_id, $meta_key, true );
+					break;
+
+				case 'term':
+					$meta_value = get_term_meta( $object_id, $meta_key, true );
+					break;
+
+				case 'user':
+					$meta_value = get_user_meta( $object_id, $meta_key, true );
+					break;
+			}
+
+			if ( ! $meta_value ) {
+				return $rows;
+			}
+
+			$rows[] = [
 				'filter_id'            => '',
-				'object_id'            => $post_id,
-				'object_type'          => 'post',
+				'object_id'            => $object_id,
+				'object_type'          => $object_type,
 				'filter_value'         => $meta_value,
 				'filter_value_display' => $meta_value,
 				'filter_value_id'      => 0,
 				'filter_value_parent'  => 0,
 			];
+
 		} else {
 			// For other providers to generate index rows, not using the default get_post_meta to reduce unnecessary queries
 			// NOTE: Undocumented - Not ready for third-party plugins (@since 1.11.1)
-			$rows = apply_filters( 'bricks/query_filters/custom_field_index_rows', $rows, $post_id, $meta_key, $provider );
+			$rows = apply_filters( 'bricks/query_filters/custom_field_index_rows', $rows, $object_id, $meta_key, $provider, $object_type );
 		}
 
 		return $rows;
@@ -1432,33 +1495,77 @@ class Query_Filters {
 	 * @param array  $posts Array of post objects
 	 * @param string $post_field The post field to be used
 	 */
-	public static function generate_post_field_index_rows( $posts, $post_field ) {
+	public static function generate_post_field_index_rows( $post, $post_field ) {
 
 		$rows = [];
+
+		if ( ! is_a( $post, 'WP_Post' ) ) {
+			return $rows;
+		}
 
 		// Change field name if needed so we can get it from post object
 		$post_field = $post_field === 'post_id' ? 'ID' : $post_field;
 
-		// Loop through all posts and get the post fields value
-		foreach ( $posts as $post ) {
-			if ( ! is_a( $post, 'WP_Post' ) ) {
-				continue;
+		// Populate rows
+		$value         = $post->$post_field ?? false;
+		$display_value = $value ?? 'None';
+
+		// If post field is post_author, get the author name
+		if ( $post_field === 'post_author' ) {
+			$author        = get_user_by( 'id', $value );
+			$display_value = $author->display_name ?? 'None';
+		}
+
+		$rows[] = [
+			'filter_id'            => '',
+			'object_id'            => $post->ID,
+			'object_type'          => 'post',
+			'filter_value'         => $value,
+			'filter_value_display' => $display_value,
+			'filter_value_id'      => 0,
+			'filter_value_parent'  => 0,
+		];
+
+		return $rows;
+	}
+
+	public static function generate_user_field_index_rows( $user, $user_field ) {
+		$rows = [];
+
+		if ( ! is_a( $user, 'WP_User' ) ) {
+			return $rows;
+		}
+
+		$user_id = $user->ID;
+
+		// Change field name if needed so we can get it from user object
+		$user_field = $user_field === 'user_id' ? 'ID' : $user_field;
+
+		$value         = $user->$user_field ?? false;
+		$display_value = $value ?? 'None';
+
+		if ( $user_field === 'user_role' ) {
+			$roles = $user->roles;
+			// One user can have multiple roles, we will index all roles
+			global $wp_roles;
+
+			foreach ( $roles as $role ) {
+				$display_value = $wp_roles->roles[ $role ]['name'] ?? $role;
+				$rows[]        = [
+					'filter_id'            => '',
+					'object_id'            => $user_id,
+					'object_type'          => 'user',
+					'filter_value'         => $role,
+					'filter_value_display' => $display_value,
+					'filter_value_id'      => 0,
+					'filter_value_parent'  => 0,
+				];
 			}
-
-			// Populate rows
-			$value         = $post->$post_field ?? false;
-			$display_value = $value ?? 'None';
-
-			// If post field is post_author, get the author name
-			if ( $post_field === 'post_author' ) {
-				$author        = get_user_by( 'id', $value );
-				$display_value = $author->display_name ?? 'None';
-			}
-
+		} else {
 			$rows[] = [
 				'filter_id'            => '',
-				'object_id'            => $post->ID,
-				'object_type'          => 'post',
+				'object_id'            => $user_id,
+				'object_type'          => 'user',
 				'filter_value'         => $value,
 				'filter_value_display' => $display_value,
 				'filter_value_id'      => 0,
@@ -1467,7 +1574,6 @@ class Query_Filters {
 		}
 
 		return $rows;
-
 	}
 
 	/**
@@ -1492,6 +1598,8 @@ class Query_Filters {
 		$active_filters = [];
 
 		foreach ( $filters as $filter_id => $value ) {
+			// Ensure the ID is a string as it could be 6 digit number (@since 1.12)
+			$filter_id      = (string) $filter_id;
 			$element_data   = Helpers::get_element_data( $post_id, $filter_id );
 			$filter_element = $element_data['element'] ?? false;
 
@@ -1522,6 +1630,7 @@ class Query_Filters {
 				'settings'      => $filter_settings,
 				'value'         => $value,
 				'instance_name' => $filter_type,
+				'url_param'     => $filter_settings['filterNiceName'] ?? "{brx_{$filter_id}}",
 			];
 
 			if ( ! isset( $active_filters[ $target_query_id ] ) ) {
@@ -1557,8 +1666,6 @@ class Query_Filters {
 
 	/**
 	 * Convert it to the correct format based on the filter type & sanitize value
-	 *
-	 * NOTE: Can't use the WP core sanitize_text_field fucntion as it can cause utf-8 characters missing.
 	 *
 	 * @since 1.11
 	 */
@@ -1623,11 +1730,13 @@ class Query_Filters {
 				break;
 		}
 
-		// Escape HTML
+		// Sanitize filter value
 		if ( is_array( $filter_value ) ) {
-			$filter_value = array_map( 'esc_html', $filter_value );
+			$filter_value = array_map( 'urldecode', $filter_value );
+			$filter_value = array_map( 'sanitize_text_field', $filter_value );
 		} else {
-			$filter_value = esc_html( $filter_value );
+			$filter_value = urldecode( $filter_value );
+			$filter_value = sanitize_text_field( $filter_value );
 		}
 
 		return $filter_value;
@@ -1771,9 +1880,10 @@ class Query_Filters {
 
 		foreach ( $page_filters as $taxonomy => $slug ) {
 			$tax_query = [
-				'taxonomy' => $taxonomy,
-				'field'    => 'slug',
-				'terms'    => $slug,
+				'taxonomy'     => $taxonomy,
+				'field'        => 'slug',
+				'terms'        => $slug,
+				'brx_no_merge' => true, // Ensure this tax_query executed as 'AND' (@since 1.12)
 			];
 
 			// Check if tax_query is already set
@@ -1865,8 +1975,13 @@ class Query_Filters {
 		$selected_option = array_filter(
 			$sort_options,
 			function( $option ) use ( $key, $order ) {
-				$db_source  = $option['optionSource'] ?? '';
-				$db_order   = $option['optionOrder'] ?? 'ASC';
+				$db_source = $option['optionSource'] ?? '';
+
+				// If the source contains |, means it is a term or user, just remove the prefix (@since 1.12)
+				$db_source = str_replace( [ 'term|', 'user|' ], '', $db_source );
+
+				$db_order = $option['optionOrder'] ?? 'ASC';
+
 				$custom_key = isset( $option['optionMetaKey'] ) && in_array( $db_source, [ 'meta_value', 'meta_value_num' ], true ) ? $option['optionMetaKey'] : false;
 
 				// Check if the selected option matches the key and order
@@ -1886,6 +2001,9 @@ class Query_Filters {
 			return $query_vars;
 		}
 
+		// Remove the prefix if it is term or user
+		$sort_source = str_replace( [ 'term|', 'user|' ], '', $sort_source );
+
 		// Check if the source is meta_value or meta_value_num
 		$is_custom_field = in_array( $sort_source, [ 'meta_value','meta_value_num' ], true ) && ! empty( $selected_option['optionMetaKey'] );
 		// Check if the source is meta_value_num
@@ -1901,6 +2019,12 @@ class Query_Filters {
 			$sort_query['meta_type']                 = 'NUMERIC';
 		} else {
 			$sort_query['orderby'][ $key ] = $order;
+		}
+
+		// WP_Term_Query only accepts string for orderby, rebuild the sort_query
+		if ( self::$generating_object_type === 'term' ) {
+			$sort_query['orderby'] = $key;
+			$sort_query['order']   = $order;
 		}
 
 		// $sort_query should override the existing query_vars
@@ -1994,6 +2118,11 @@ class Query_Filters {
 				break;
 
 			case 'user':
+				$source_field = $settings['wpUserField'] ?? false;
+
+				if ( ! $source_field ) {
+					return $query_vars;
+				}
 				break;
 
 			case 'term':
@@ -2007,6 +2136,7 @@ class Query_Filters {
 		}
 
 		switch ( $source_field ) {
+			// POST
 			case 'post_date':
 				$key = 'date';
 				break;
@@ -2021,6 +2151,16 @@ class Query_Filters {
 
 			case 'post_id':
 				$key = 'p';
+				break;
+
+			// USER
+			case 'user_registered':
+				$key = 'registered';
+
+				break;
+
+			case 'user_role':
+				$key = 'role__in';
 				break;
 
 			default:
@@ -2067,8 +2207,8 @@ class Query_Filters {
 		// Old Logic (meta_query) (Initially wanted to use 'post__in' but encounter many bugs when cobining with multiple filters)
 		$instance_name = $filter['instance_name'];
 
-		if ( isset( $settings['filterCompareOperator'] ) ) {
-			$compare_operator = $settings['filterCompareOperator'];
+		if ( isset( $settings['fieldCompareOperator'] ) ) {
+			$compare_operator = $settings['fieldCompareOperator'];
 		} else {
 			// Default compare operator for filter-select and filter-radio is =, for others is IN
 			$compare_operator = in_array( $instance_name, [ 'filter-select', 'filter-radio' ], true ) ? '=' : 'IN';
@@ -2145,15 +2285,44 @@ class Query_Filters {
 	 * @since 1.11
 	 */
 	private static function build_search_query_vars( $query_vars, $filter, $query_id, $filter_index ) {
-		$settings     = $filter['settings'];
-		$filter_value = $filter['value'];
+		$settings          = $filter['settings'];
+		$filter_value      = $filter['value'];
+		$query_object_type = self::get_generating_type();
 
-		// Hardcoded search key until filter-search element supports custom key
-		$query_vars['s'] = $filter_value;
+		$search_query = [];
+
+		switch ( $query_object_type ) {
+			case 'post':
+				// Hardcoded search key until filter-search element supports custom key
+				$search_query    = [
+					's' => $filter_value,
+				];
+				$query_vars['s'] = $filter_value;
+				break;
+
+			// Support term query (@since 1.12)
+			case 'term':
+				$search_query         = [
+					'search' => $filter_value,
+				];
+				$query_vars['search'] = $filter_value;
+				break;
+
+			// Support user query (@since 1.12)
+			case 'user':
+				$search_query         = [
+					'search' => '*' . $filter_value . '*',
+				];
+				$query_vars['search'] = '*' . $filter_value . '*';
+				break;
+
+			default:
+				break;
+		}
 
 		// Update $active_filters with the selected option, will be used in other area
 		if ( isset( self::$active_filters[ $query_id ][ $filter_index ] ) ) {
-			self::$active_filters[ $query_id ][ $filter_index ]['query_vars'] = [ 's' => $filter_value ];
+			self::$active_filters[ $query_id ][ $filter_index ]['query_vars'] = $search_query; // [ 's' => $filter_value ];
 			self::$active_filters[ $query_id ][ $filter_index ]['query_type'] = 'wp_query';
 		}
 
@@ -2477,6 +2646,18 @@ class Query_Filters {
 			return [];
 		}
 
+		// Improve performance by using cache (not object cache) (@since 1.12)
+		// Static cache for the function results
+		static $cache = [];
+
+		// Generate a unique cache key based on input parameters
+		$cache_key = md5( $filter_id . wp_json_encode( $object_ids ) );
+
+		// Check if the cache exists
+		if ( isset( $cache[ $cache_key ] ) ) {
+			return $cache[ $cache_key ];
+		}
+
 		global $wpdb;
 
 		$table_name = self::get_table_name();
@@ -2506,6 +2687,9 @@ class Query_Filters {
 			ARRAY_A
 		);
 
+		// Cache the result
+		$cache[ $cache_key ] = $filter_values;
+
 		return $filter_values ?? [];
 	}
 
@@ -2515,7 +2699,7 @@ class Query_Filters {
 	 * Each query_id will only be queried once
 	 *
 	 * @param string $query_id
-	 * @return array $all_posts_ids
+	 * @return array $all_object_ids
 	 */
 	public static function get_filter_object_ids( $query_id = '', $source = 'history', $additonal_query_vars = [] ) {
 		if ( empty( $query_id ) ) {
@@ -2547,47 +2731,115 @@ class Query_Filters {
 
 		$query_type = $query_data->object_type ?? 'post';
 
-		// Beta only support post query type
-		if ( $query_type !== 'post' ) {
+		// Support post, term, user
+		if ( ! in_array( $query_type, [ 'post', 'term', 'user' ] ) ) {
 			return [];
 		}
 
-		// Use the query_vars and get all possible post ids
-		$all_posts_args = array_merge(
-			$query_vars,
-			[
-				'paged'                  => 1,
-				'posts_per_page'         => -1,
-				'update_post_meta_cache' => false,
-				'update_post_term_cache' => false,
-				'cache_results'          => false,
-				'no_found_rows'          => true,
-				'nopaging'               => true,
-				'fields'                 => 'ids',
-			]
-		);
+		$all_object_ids = [];
 
-		if ( ! empty( $additonal_query_vars ) ) {
-			$all_posts_args = Query::merge_query_vars( $all_posts_args, $additonal_query_vars );
+		switch ( $query_type ) {
+			case 'post':
+				// Use the query_vars and get all possible post ids
+				$all_posts_args = array_merge(
+					$query_vars,
+					[
+						'paged'                  => 1,
+						'posts_per_page'         => -1,
+						'update_post_meta_cache' => false,
+						'update_post_term_cache' => false,
+						'cache_results'          => false,
+						'no_found_rows'          => true,
+						'nopaging'               => true,
+						'fields'                 => 'ids',
+					]
+				);
+
+				if ( ! empty( $additonal_query_vars ) ) {
+					$all_posts_args = Query::merge_query_vars( $all_posts_args, $additonal_query_vars );
+				}
+
+				$all_posts = new \WP_Query( $all_posts_args );
+
+				$all_object_ids = $all_posts->posts;
+
+				break;
+
+			case 'term':
+				// Use the query_vars and get all possible term ids
+				$all_terms_args = array_merge(
+					$query_vars,
+					[
+						'hide_empty'    => false,
+						'fields'        => 'ids',
+						'number'        => 0,
+						'offset'        => 0,
+						'orderby'       => 'id',
+						'cache_results' => false,
+					]
+				);
+
+				if ( ! empty( $additonal_query_vars ) ) {
+					$all_terms_args = Query::merge_query_vars( $all_terms_args, $additonal_query_vars );
+				}
+
+				$all_terms = new \WP_Term_Query( $all_terms_args );
+
+				$all_object_ids = $all_terms->get_terms();
+
+				break;
+
+			case 'user':
+				// Use the query_vars and get all possible user ids
+				$all_users_args = array_merge(
+					$query_vars,
+					[
+						'number'  => -1,
+						'offset'  => 0,
+						'fields'  => 'ID',
+						'orderby' => 'ID',
+					]
+				);
+
+				if ( ! empty( $additonal_query_vars ) ) {
+					$all_users_args = Query::merge_query_vars( $all_users_args, $additonal_query_vars );
+				}
+
+				$all_users = new \WP_User_Query( $all_users_args );
+
+				$all_object_ids = $all_users->get_results();
+
+				break;
 		}
 
-		$all_posts = new \WP_Query( $all_posts_args );
-
-		$all_posts_ids = $all_posts->posts;
+		// Undocumented: For Event Calendar Pro (#86c1193hv)
+		$all_object_ids = apply_filters( 'bricks/query_filters/get_filter_object_ids', $all_object_ids, $query_id, $query_type, $source );
 
 		/**
-		 * Consider user offset
+		 * Consider user offset in query loop settings
 		 *
 		 * @since 1.11
 		 */
-		if ( isset( $query_vars['offset'] ) && $query_vars['offset'] > 0 ) {
-			$all_posts_ids = array_slice( $all_posts_ids, $query_vars['offset'] );
+		switch ( $query_type ) {
+			case 'post':
+			case 'user':
+				if ( isset( $query_vars['offset'] ) && $query_vars['offset'] > 0 ) {
+					$all_object_ids = array_slice( $all_object_ids, $query_vars['offset'] );
+				}
+
+				break;
+
+			case 'term':
+				if ( isset( $query_vars['original_offset'] ) && $query_vars['original_offset'] > 0 ) {
+					$all_object_ids = array_slice( $all_object_ids, $query_vars['original_offset'] );
+				}
+				break;
 		}
 
 		// Store the object_ids in self::$filter_object_ids
-		self::$filter_object_ids[ $cache_key ] = $all_posts_ids;
+		self::$filter_object_ids[ $cache_key ] = $all_object_ids;
 
-		return $all_posts_ids;
+		return $all_object_ids;
 	}
 
 	/**
@@ -2746,34 +2998,20 @@ class Query_Filters {
 						$filter_settings = $element['settings'];
 						$field_type      = $filter_settings['sourceFieldType'] ?? 'post';
 
-						if ( ! $field_type ) {
+						if ( ! $field_type || $field_type !== 'post' ) {
 							continue;
 						}
 
-						$selected_field = false;
-						switch ( $field_type ) {
-							case 'post':
-								$selected_field = $filter_settings['wpPostField'] ?? false;
+						$selected_field = $filter_settings['wpPostField'] ?? false;
 
-								if ( ! $selected_field ) {
-									continue 2;
-								}
+						if ( ! $selected_field ) {
+							continue;
+						}
 
-								if ( isset( $post_fields[ $selected_field ] ) ) {
-									$post_fields[ $selected_field ][] = $element['filter_id'];
-								} else {
-									$post_fields[ $selected_field ] = [ $element['filter_id'] ];
-								}
-
-								break;
-
-							case 'user':
-								$selected_field = $filter_settings['wpUserField'] ?? false;
-								break;
-
-							case 'term':
-								$selected_field = $filter_settings['wpTermField'] ?? false;
-								break;
+						if ( isset( $post_fields[ $selected_field ] ) ) {
+							$post_fields[ $selected_field ][] = $element['filter_id'];
+						} else {
+							$post_fields[ $selected_field ] = [ $element['filter_id'] ];
 						}
 					}
 
@@ -2781,7 +3019,7 @@ class Query_Filters {
 						// Generate rows for each post_field
 						foreach ( $post_fields as $post_field => $filter_ids ) {
 
-							$rows_for_this_post_field = self::generate_post_field_index_rows( [ $post ], $post_field );
+							$rows_for_this_post_field = self::generate_post_field_index_rows( $post, $post_field );
 
 							// Build $rows_to_insert
 							if ( ! empty( $rows_for_this_post_field ) && ! empty( $filter_ids ) ) {
@@ -2824,12 +3062,14 @@ class Query_Filters {
 						// filter_settings is json string
 						$filter_settings = $element['settings'];
 						$meta_key        = $filter_settings['customFieldKey'] ?? false;
+						$source_type     = $filter_settings['sourceFieldType'] ?? 'post';
 						$provider        = $filter_settings['fieldProvider'] ?? 'none';
 
-						if ( ! $meta_key ) {
+						if ( ! $meta_key || $source_type !== 'post' ) {
 							continue;
 						}
 
+						// Logic to detect if the meta_key is exits on this post
 						// STEP: Check if this meta_key exists on $post_id
 						if ( $provider === 'none' ) {
 							if ( ! metadata_exists( 'post', $post_id, $meta_key ) ) {
@@ -2868,7 +3108,7 @@ class Query_Filters {
 						}
 
 						// Generate rows for this meta_key
-						$rows_for_this_meta_key = self::generate_custom_field_index_rows( $post_id, $meta_key, $provider );
+						$rows_for_this_meta_key = self::generate_custom_field_index_rows( $post_id, $meta_key, $provider, 'post' );
 
 						// Build $rows_to_insert
 						if ( ! empty( $rows_for_this_meta_key ) && ! empty( $filter_ids ) ) {
@@ -3020,6 +3260,14 @@ class Query_Filters {
 	 * Update indexed records when a term is deleted
 	 */
 	public function delete_term( $term_id, $tt_id, $taxonomy, $deleted_term ) {
+		// Remove index rows related to this term_id (@since 1.12)
+		self::remove_index_rows(
+			[
+				'object_id'   => $term_id,
+				'object_type' => 'term',
+			]
+		);
+
 		// Get all indexable and active filter elements from element table
 		$indexable_elements = $this->get_elements_from_element_table(
 			[
@@ -3065,5 +3313,270 @@ class Query_Filters {
 				array_merge( $filter_ids, [ $term_id ] )
 			)
 		);
+	}
+
+	public function user_updated( $user_id ) {
+		$this->index_user( $user_id );
+	}
+
+	/**
+	 * Remove index when a user is deleted
+	 */
+	public function delete_user( $user_id ) {
+		// Remove rows related to this user_id
+		self::remove_index_rows(
+			[
+				'object_id'   => $user_id,
+				'object_type' => 'user',
+			]
+		);
+	}
+
+	/**
+	 * Core function to index a user based on all active indexable filter elements
+	 *
+	 * @since 1.12
+	 * @param int $user_id
+	 */
+	public function index_user( $user_id ) {
+		// Get all indexable and active filter elements from element table
+		$indexable_elements = $this->get_elements_from_element_table(
+			[
+				'indexable' => 1,
+				'status'    => 1
+			]
+		);
+
+		if ( empty( $indexable_elements ) ) {
+			return;
+		}
+
+		// Only get filter elements that related to user field
+		$user_elements = array_filter(
+			$indexable_elements,
+			function ( $element ) {
+				$filter_settings = json_decode( $element['settings'], true );
+				$filter_source   = $filter_settings['filterSource'] ?? false;
+				$field_type      = $filter_settings['sourceFieldType'] ?? false;
+
+				$is_user_element = false;
+
+				if (
+					$filter_source === 'customField' && $field_type === 'user' ||
+					$filter_source === 'wpField' && $field_type === 'user'
+				) {
+					$is_user_element = true;
+				}
+
+				return $is_user_element;
+			}
+		);
+
+		if ( empty( $user_elements ) ) {
+			return;
+		}
+
+		// NOTE: Undocumented - Not ready for third-party plugins - Trigger action before indexing post (@since 1.11.1)
+		do_action( 'bricks/query_filters/index_user/before', $user_id );
+
+		// Loop through all user elements and group them up by filter_source
+		$grouped_elements = [];
+		$user             = get_userdata( $user_id );
+
+		foreach ( $user_elements as $element ) {
+			// filter_settings is json string
+			$filter_settings = json_decode( $element['settings'], true );
+			$filter_source   = $filter_settings['filterSource'] ?? false;
+
+			if ( ! $filter_source ) {
+				continue;
+			}
+
+			// Update filter_settings properly
+			$element['settings'] = $filter_settings;
+
+			$grouped_elements[ $filter_source ][] = $element;
+		}
+
+		// Loop through all grouped elements and generate index
+		foreach ( $grouped_elements as $source => $elements ) {
+			$rows_to_insert = [];
+
+			// Build $rows
+			switch ( $source ) {
+				case 'wpField':
+					$user_fields = [];
+					foreach ( $elements as $element ) {
+						// check what is the selected field
+						$filter_settings = $element['settings'];
+						$field_type      = $filter_settings['sourceFieldType'] ?? 'post';
+
+						if ( $field_type !== 'user' ) {
+							continue;
+						}
+
+						$selected_field = $filter_settings['wpUserField'] ?? false;
+
+						if ( ! $selected_field ) {
+							continue;
+						}
+
+						if ( isset( $user_fields[ $selected_field ] ) ) {
+							$user_fields[ $selected_field ][] = $element['filter_id'];
+						} else {
+							$user_fields[ $selected_field ] = [ $element['filter_id'] ];
+						}
+					}
+
+					if ( ! empty( $user_fields ) ) {
+						// Generate rows for each user_field
+						foreach ( $user_fields as $user_field => $filter_ids ) {
+
+							$rows_for_this_user_field = self::generate_user_field_index_rows( $user, $user_field );
+
+							// Build $rows_to_insert
+							if ( ! empty( $rows_for_this_user_field ) && ! empty( $filter_ids ) ) {
+								// Add filter_id to each row, row is the standard template, do not overwrite it.
+								foreach ( $filter_ids as $filter_id ) {
+									$rows_to_insert = array_merge(
+										$rows_to_insert,
+										array_map(
+											function( $row ) use ( $filter_id ) {
+												$row['filter_id'] = $filter_id;
+
+												return $row;
+											},
+											$rows_for_this_user_field
+										)
+									);
+								}
+							}
+
+							// Remove rows related to this filter_id and user_id
+							foreach ( $filter_ids as $filter_id ) {
+								self::remove_index_rows(
+									[
+										'filter_id' => $filter_id,
+										'object_id' => $user_id,
+									]
+								);
+							}
+						}
+
+					}
+
+					break;
+
+				case 'customField':
+					$meta_keys = [];
+
+					// STEP: Gather all meta keys from each element settings
+					foreach ( $elements as $element ) {
+						// filter_settings is json string
+						$filter_settings = $element['settings'];
+						$meta_key        = $filter_settings['customFieldKey'] ?? false;
+						$source_type     = $filter_settings['sourceFieldType'] ?? 'user';
+						$provider        = $filter_settings['fieldProvider'] ?? 'none';
+
+						if ( ! $meta_key || $source_type !== 'user' ) {
+							continue;
+						}
+
+						// Logic to detect if the meta_key is exits on this user
+						// STEP: Check if this meta_key exists on $user_id
+						if ( $provider === 'none' ) {
+							if ( ! metadata_exists( 'user', $user_id, $meta_key )
+							) {
+								continue;
+							}
+
+						} else {
+							// NOTE: Undocumented - Not ready for third-party plugins (@since 1.12)
+							if ( ! apply_filters( 'bricks/query_filters/index_user/meta_exists', false, $user_id, $meta_key, $provider ) ) {
+								continue;
+							}
+						}
+
+						$identifier = $meta_key . '||' . $provider;
+
+						// Add filter_id to existing meta_key, so we can add filter_id for each row later
+						if ( isset( $meta_keys[ $identifier ] ) ) {
+							$meta_keys[ $identifier ][] = $element['filter_id'];
+						} else {
+							$meta_keys[ $identifier ] = [ $element['filter_id'] ];
+						}
+
+					}
+
+					if ( empty( $meta_keys ) ) {
+						continue 2;
+					}
+
+					// Generate rows for each meta_key
+					foreach ( $meta_keys as $identifier => $filter_ids ) {
+						// explode the identifier
+						$keys     = explode( '||', $identifier );
+						$meta_key = $keys[0] ?? false;
+						$provider = $keys[1] ?? 'none';
+
+						if ( ! $meta_key ) {
+							continue;
+						}
+
+						// Generate rows for this meta_key
+						$rows_for_this_meta_key = self::generate_custom_field_index_rows( $user_id, $meta_key, $provider, 'user' );
+
+						// Build $rows_to_insert
+						if ( ! empty( $rows_for_this_meta_key ) && ! empty( $filter_ids ) ) {
+							// Add filter_id to each row, row is the standard template, do not overwrite it. insert rows_to_insert instead after foreach loop
+							foreach ( $filter_ids as $filter_id ) {
+								$rows_to_insert = array_merge(
+									$rows_to_insert,
+									array_map(
+										function( $row ) use ( $filter_id ) {
+											$row['filter_id'] = $filter_id;
+
+											return $row;
+										},
+										$rows_for_this_meta_key
+									)
+								);
+							}
+						}
+
+						// Remove rows related to this filter_id and user_id
+						foreach ( $filter_ids as $filter_id ) {
+							self::remove_index_rows(
+								[
+									'filter_id' => $filter_id,
+									'object_id' => $user_id,
+								]
+							);
+						}
+
+					}
+
+					break;
+
+			}
+
+			// Insert rows into database
+			if ( ! empty( $rows_to_insert ) ) {
+				self::insert_index_rows( $rows_to_insert );
+			}
+		}
+
+	}
+
+	public static function set_generating_type( $object_type ) {
+		self::$generating_object_type = $object_type;
+	}
+
+	public static function reset_generating_type() {
+		self::$generating_object_type = 'post';
+	}
+
+	public static function get_generating_type() {
+		return self::$generating_object_type;
 	}
 }

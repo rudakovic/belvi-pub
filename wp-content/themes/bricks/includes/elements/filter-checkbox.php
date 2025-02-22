@@ -121,6 +121,13 @@ class Filter_Checkbox extends Filter_Element {
 			$current_value = $settings['filterValue'];
 		}
 
+		// Escape attributes or it can't match with the options (@since 1.12)
+		if ( is_array( $current_value ) ) {
+			$current_value = array_map( 'esc_attr', $current_value );
+		} else {
+			$current_value = esc_attr( $current_value );
+		}
+
 		// Button mode (@since 1.11)
 		$display_mode = $settings['displayMode'] ?? 'default';
 
@@ -131,14 +138,21 @@ class Filter_Checkbox extends Filter_Element {
 		echo "<ul {$this->render_attributes('_root')}>";
 
 		foreach ( $this->populated_options as $index => $option ) {
-			if ( empty( $option['text'] ) ) {
+			/**
+			 * Skip empty text options
+			 *
+			 * Each option must have a text. 0 is allowed, otherwise it will conflict with the "All" option / Placeholder option.
+			 *
+			 * @since 1.12
+			 */
+			if ( isset( $option['text'] ) && $option['text'] === '' ) {
 				continue;
 			}
 
 			$option_text     = $this->get_option_text_with_count( $option );
-			$option_value    = esc_attr( strip_tags( $option['value'] ) );
+			$option_value    = esc_attr( $option['value'] );
 			$option_class    = esc_attr( $option['class'] );
-			$option_selected = in_array( $option_value, $current_value );
+			$option_selected = in_array( urldecode( $option_value ), $current_value );
 			$option_disabled = isset( $option['disabled'] ) && ! $option_selected;
 
 			$li_key    = 'li_' . $index;

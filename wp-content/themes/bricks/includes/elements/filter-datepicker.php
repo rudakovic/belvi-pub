@@ -15,13 +15,21 @@ class Filter_DatePicker extends Filter_Element {
 	}
 
 	public function enqueue_scripts() {
+		wp_enqueue_script( 'bricks-filters' );
 		wp_enqueue_script( 'bricks-flatpickr' );
 		wp_enqueue_style( 'bricks-flatpickr' );
 
 		// Load datepicker localisation
 		$l10n = $this->settings['l10n'] ?? '';
 		if ( $l10n ) {
-			wp_enqueue_script( 'bricks-flatpickr-l10n', "https://npmcdn.com/flatpickr@4.6.13/dist/l10n/$l10n.js", [ 'bricks-flatpickr' ], '4.6.13' );
+			/**
+			 * Set "version" (4.6.13) to null
+			 *
+			 * If version is present, we get a 302 redirect
+			 *
+			 * @since 1.12
+			 */
+			wp_enqueue_script( 'bricks-flatpickr-l10n', "https://npmcdn.com/flatpickr@4.6.13/dist/l10n/$l10n.js", [ 'bricks-flatpickr' ], null );
 		}
 	}
 
@@ -42,6 +50,11 @@ class Filter_DatePicker extends Filter_Element {
 					'post_date'     => esc_html__( 'Post date', 'bricks' ),
 					'post_modified' => esc_html__( 'Post modified date', 'bricks' ),
 				];
+			}
+
+			if ( ! empty( $filter_controls['wpUserField'] ) ) {
+				// Add user_registered date (@since 1.12)
+				$filter_controls['wpUserField']['options']['user_registered'] = esc_html__( 'User registered date', 'bricks' );
 			}
 
 			unset( $filter_controls['filterSource']['options']['taxonomy'] );
@@ -85,6 +98,7 @@ class Filter_DatePicker extends Filter_Element {
 				'description'    => esc_html__( 'Must match with the format saved in database.', 'bricks' ) . ' ' . esc_html__( 'ACF Date picker, for example, uses Ymd.', 'bricks' ),
 				'required'       => [
 					[ 'filterSource', '!=', '' ],
+					[ 'filter_source', '=', 'wpField' ],
 				]
 			];
 
@@ -211,9 +225,9 @@ class Filter_DatePicker extends Filter_Element {
 					$field_key = $settings['wpPostField'] ?? false;
 					break;
 
-				// case 'user':
-				// $field_key = $settings['wpUserField'] ?? false;
-				// break;
+				case 'user':
+					$field_key = $settings['wpUserField'] ?? false;
+					break;
 
 				// case 'term':
 				// $field_key = $settings['wpTermField'] ?? false;
@@ -355,8 +369,20 @@ class Filter_DatePicker extends Filter_Element {
 		$settings = $this->settings;
 
 		// User defined date format (@since 1.9.8)
-		$date_format = $settings['dateFormat'] ?? get_option( 'date_format' );
-		$provider    = $settings['fieldProvider'] ?? 'none';
+		$date_format   = $settings['dateFormat'] ?? get_option( 'date_format' );
+		$provider      = $settings['fieldProvider'] ?? 'none';
+		$filter_source = $settings['filterSource'] ?? false;
+
+		// Date format for WP field (@since 1.12)
+		if ( $filter_source === 'wpField' ) {
+			$field_type = $settings['sourceFieldType'] ?? 'post';
+			switch ( $field_type ) {
+				case 'post':
+				case 'user':
+					$date_format = 'Y-m-d';
+					break;
+			}
+		}
 
 		if ( isset( $settings['enableTime'] ) ) {
 			$date_format .= ' H:i';

@@ -35,8 +35,19 @@ class Element_Accordion_Nested extends Element {
 		];
 
 		$this->controls['expandFirstItem'] = [
-			'label' => esc_html__( 'Expand first item', 'bricks' ),
-			'type'  => 'checkbox',
+			'deprecated' => '1.11.2', // Use 'expandItem' instead
+			'label'      => esc_html__( 'Expand first item', 'bricks' ),
+			'type'       => 'checkbox',
+		];
+
+		// Expand item on page load (@since 1.12)
+		$this->controls['expandItem'] = [
+			'label'       => esc_html__( 'Expand item indexes', 'bricks' ),
+			'type'        => 'text',
+			'description' => esc_html__( 'Indexes of the items to expand on page load, separated by comma, start at 0.', 'bricks' ),
+			'inline'      => true,
+			'placeholder' => '',
+			'required'    => [ 'expandFirstItem', '!=', true ],
 		];
 
 		$this->controls['independentToggle'] = [
@@ -52,7 +63,6 @@ class Element_Accordion_Nested extends Element {
 		];
 
 		$this->controls['faqSchema'] = [
-			'tab'         => 'content',
 			'label'       => esc_html__( 'FAQ schema', 'bricks' ),
 			'type'        => 'checkbox',
 			'description' => '<a href="https://developers.google.com/search/docs/appearance/structured-data/faqpage" target="_blank">' . esc_html__( 'Generate FAQPage structured data (JSON-LD).', 'bricks' ) . '</a>',
@@ -359,6 +369,11 @@ class Element_Accordion_Nested extends Element {
 			if ( isset( $settings[ $setting_key ] ) ) {
 				$data_script_args[] = $setting_key;
 			}
+		}
+
+		// Expand item on page load (@since 1.12)
+		if ( isset( $settings['expandItem'] ) ) {
+			$this->set_attribute( '_root', 'data-expand-item', $settings['expandItem'] );
 		}
 
 		if ( count( $data_script_args ) ) {
