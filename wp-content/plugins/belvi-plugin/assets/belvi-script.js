@@ -15,7 +15,25 @@ function openBeer(e, id) {
     })
         .then(response => response.json())
         .then(data => {
-            console.log(data);
+            const beerView = document.getElementById('beer-view');
+            const beerName = document.getElementById('beer-view-name');
+            const beerImage = document.getElementById('beer-view-image');
+            const beerBrewery = document.getElementById('beer-view-brewery');
+            const beerType = document.getElementById('beer-view-type');
+            const beerAVB = document.getElementById('beer-view-abv');
+            const beerIBU = document.getElementById('beer-view-ibu');
+            const beerBreweryIcon = document.getElementById('beer-view-brewery-icon');
+
+            beerName.innerText = data['title'];
+            beerImage.src = data['image'];
+            beerBrewery.innerText = data['title'];
+            beerType.innerText = data['beer_style'];
+            beerAVB.innerText = data['abv'];
+            beerIBU.innerText = data['ibu'];
+            beerBreweryIcon.src = data['brewery_icon'];
+            if(!beerView.classlist.contains('open')) {
+                beerView.classlist.add('open');
+            }
         })
         .catch(error => {
             console.error('Error:', error);
