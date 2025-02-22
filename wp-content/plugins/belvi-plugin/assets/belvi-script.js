@@ -15,6 +15,7 @@ function openBeer(e, id) {
     })
         .then(response => response.json())
         .then(data => {
+            console.log(data);
             const beerView = document.getElementById('beer-view');
             const beerName = document.getElementById('beer-view-name');
             const beerImage = document.getElementById('beer-view-image');
