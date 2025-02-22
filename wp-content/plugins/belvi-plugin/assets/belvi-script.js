@@ -28,7 +28,7 @@ function openBeer(e, id) {
             beerImage.src = data['image'];
             beerBrewery.innerText = data['title'];
             beerType.innerText = data['beer_style'];
-            beerAVB.innerText = data['abv'];
+            beerAVB.innerText = data['abv'] + '%';
             beerIBU.innerText = data['ibu'];
             beerBreweryIcon.src = data['brewery_icon'];
             if(!beerView.classList.contains('open')) {
