@@ -15,7 +15,6 @@ function openBeer(e, id) {
     })
         .then(response => response.json())
         .then(data => {
-            console.log(data);
             const beerView = document.getElementById('beer-view');
             const beerName = document.getElementById('beer-view-name');
             const beerImageWrap = document.getElementById('beer-view-image-wrap');
@@ -59,4 +58,13 @@ function openBeer(e, id) {
         .catch(error => {
             console.error('Error:', error);
         });
+}
+
+function closeBeer(e) {
+    e.preventDefault();
+
+    const beerView = document.getElementById('beer-view');
+    if(beerView.classList.contains('open')) {
+        beerView.classList.remove('open');
+    }
 }
