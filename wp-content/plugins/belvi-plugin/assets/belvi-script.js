@@ -24,7 +24,7 @@ function openBeer(e, id) {
             const beerType = document.getElementById('beer-view-type');
             const beerAVB = document.getElementById('beer-view-abv');
             const beerIBU = document.getElementById('beer-view-ibu');
-            const beerBreweryIcon = document.getElementById('beer-view-brewery-icon');
+            const beerBreweryIconWrap = document.getElementById('beer-view-brewery-icon-wrap');
 
             beerName.innerText = data['title'];
             beerImageWrap.innerHTML = '';
@@ -38,8 +38,12 @@ function openBeer(e, id) {
             beerType.innerText = data['beer_style'];
             beerAVB.innerText = data['abv'] + '%';
             beerIBU.innerText = data['ibu'];
+            beerBreweryIconWrap.innerHTML = '';
+            const beerBreweryIcon = document.createElement('img');
             beerBreweryIcon.src = data['brewery_icon'];
-            beerBreweryIcon.removeAttribute('srcset');
+            beerBreweryIcon.alt = data['brewery'];
+            beerBreweryIcon.classList.add('beer-view__brewery-icon');
+            beerBreweryIconWrap.appendChild(beerBreweryIcon);
             if(!beerView.classList.contains('open')) {
                 beerView.classList.add('open');
             }
