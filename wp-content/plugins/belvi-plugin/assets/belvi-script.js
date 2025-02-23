@@ -18,7 +18,7 @@ function openBeer(e, id) {
             console.log(data);
             const beerView = document.getElementById('beer-view');
             const beerName = document.getElementById('beer-view-name');
-            const beerImage = document.getElementById('beer-view-image');
+            const beerImageWrap = document.getElementById('beer-view-image-wrap');
             const beerBrewery = document.getElementById('beer-view-brewery');
             const beerDescription = document.getElementById('beer-view-description');
             const beerType = document.getElementById('beer-view-type');
@@ -27,7 +27,12 @@ function openBeer(e, id) {
             const beerBreweryIcon = document.getElementById('beer-view-brewery-icon');
 
             beerName.innerText = data['title'];
+            beerImageWrap.innerHTML = '';
+            const beerImage = document.createElement('img');
             beerImage.src = data['image'];
+            beerImage.alt = data['title'];
+            beerImage.classList.add('beer-view__image');
+            beerImageWrap.appendChild(beerImage);
             beerBrewery.innerText = data['brewery'];
             beerDescription.innerHTML = data['content'];
             beerType.innerText = data['beer_style'];
