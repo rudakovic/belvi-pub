@@ -36,8 +36,16 @@ function openBeer(e, id) {
             beerBrewery.innerText = data['brewery'];
             beerDescription.innerHTML = data['content'];
             beerType.innerText = data['beer_style'];
-            beerAVB.innerText = data['abv'] + '%';
-            beerIBU.innerText = data['ibu'];
+            if (data['abv']) {
+                beerAVB.innerText = 'ABV: ' + data['abv'] + '%';
+            } else {
+                beerAVB.innerText = '';
+            }
+            if(data['ibu']) {
+                beerIBU.innerText = 'IBU: ' + data['ibu'];
+            } else {
+                beerIBU.innerText = '';
+            }
             beerBreweryIconWrap.innerHTML = '';
             const beerBreweryIcon = document.createElement('img');
             beerBreweryIcon.src = data['brewery_icon'];
