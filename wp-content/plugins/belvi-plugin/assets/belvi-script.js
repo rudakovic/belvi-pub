@@ -20,6 +20,7 @@ function openBeer(e, id) {
             const beerName = document.getElementById('beer-view-name');
             const beerImage = document.getElementById('beer-view-image');
             const beerBrewery = document.getElementById('beer-view-brewery');
+            const beerDescription = document.getElementById('beer-view-description');
             const beerType = document.getElementById('beer-view-type');
             const beerAVB = document.getElementById('beer-view-abv');
             const beerIBU = document.getElementById('beer-view-ibu');
@@ -27,7 +28,8 @@ function openBeer(e, id) {
 
             beerName.innerText = data['title'];
             beerImage.src = data['image'];
-            beerBrewery.innerText = data['title'];
+            beerBrewery.innerText = data['brewery'];
+            beerDescription.innerText = data['content'];
             beerType.innerText = data['beer_style'];
             beerAVB.innerText = data['abv'] + '%';
             beerIBU.innerText = data['ibu'];
