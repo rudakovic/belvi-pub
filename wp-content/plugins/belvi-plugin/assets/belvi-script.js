@@ -29,7 +29,7 @@ function openBeer(e, id) {
             beerName.innerText = data['title'];
             beerImage.src = data['image'];
             beerBrewery.innerText = data['brewery'];
-            beerDescription.innerText = data['content'];
+            beerDescription.innerHTML = data['content'];
             beerType.innerText = data['beer_style'];
             beerAVB.innerText = data['abv'] + '%';
             beerIBU.innerText = data['ibu'];
