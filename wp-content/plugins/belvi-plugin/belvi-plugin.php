@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
 }
 
 function belvi_enqueue_assets() {
-	wp_enqueue_style('belvi-style', plugin_dir_url(__FILE__) . 'assets/belvi-style.css');
+//	wp_enqueue_style('belvi-style', plugin_dir_url(__FILE__) . 'assets/belvi-style.css');
 
 	wp_enqueue_script('belvi-script', plugin_dir_url(__FILE__) . 'assets/belvi-script.js', array('jquery'), null, true);
 }

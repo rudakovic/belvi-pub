@@ -54,6 +54,7 @@ function openBeer(e, id) {
             if(!beerView.classList.contains('open')) {
                 beerView.classList.add('open');
             }
+            document.getElementById('pivo').scrollIntoView();
         })
         .catch(error => {
             console.error('Error:', error);
