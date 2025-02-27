@@ -25,6 +25,13 @@ function redirect_all_except_one_to_specific_page() {
 	$redirect_to_id = 393;   // The page to redirect everything else to
 
 	if (is_single() || is_page()) {
+		$post_type = get_post_type();
+
+		// Exclude Bricks templates from redirection
+		if ($post_type === 'bricks_template') {
+			return;
+		}
+
 		$current_post_id = get_queried_object_id();
 		if ($current_post_id != $allowed_post_id) {
 			wp_redirect(get_permalink($redirect_to_id), 301); // 301 = Permanent Redirect
