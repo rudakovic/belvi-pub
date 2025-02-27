@@ -20,22 +20,16 @@ add_action('wp_enqueue_scripts', 'belvi_enqueue_assets');
 
 include_once plugin_dir_path(__FILE__) . 'inc/api.php';
 
-function restrict_all_except_one() {
-	// Allow only this post/page (set by ID)
-	$allowed_post_id = 28;
+function redirect_all_except_one_to_specific_page() {
+	$allowed_post_id = 28;  // The only post/page allowed
+	$redirect_to_id = 393;   // The page to redirect everything else to
 
-	// Get current post ID
 	if (is_single() || is_page()) {
 		$current_post_id = get_queried_object_id();
-
 		if ($current_post_id != $allowed_post_id) {
-			global $wp_query;
-			$wp_query->set_404();
-			status_header(404);
-			nocache_headers();
-			include(get_query_template('404'));
+			wp_redirect(get_permalink($redirect_to_id), 301); // 301 = Permanent Redirect
 			exit;
 		}
 	}
 }
-add_action('template_redirect', 'restrict_all_except_one');
+add_action('template_redirect', 'redirect_all_except_one_to_specific_page');
